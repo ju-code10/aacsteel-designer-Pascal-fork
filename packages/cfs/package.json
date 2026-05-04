@@ -26,6 +26,8 @@
     "react": "^18 || ^19"
   },
   "dependencies": {
+    "@pascal-app/core": "*",
+    "zod": "^4.3.6",
     "zustand": "^5"
   },
   "devDependencies": {

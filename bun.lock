@@ -51,6 +51,8 @@
       "name": "@pascal-app/cfs",
       "version": "0.0.1",
       "dependencies": {
+        "@pascal-app/core": "*",
+        "zod": "^4.3.6",
         "zustand": "^5",
       },
       "devDependencies": {

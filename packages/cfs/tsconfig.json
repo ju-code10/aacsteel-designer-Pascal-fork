@@ -5,8 +5,10 @@
     "rootDir": "src",
     "noEmit": false,
     "composite": true,
-    "incremental": true
+    "incremental": true,
+    "resolveJsonModule": true
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/*.test.tsx"]
+  "include": ["src", "src/**/*.json"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/*.test.tsx"],
+  "references": [{ "path": "../core" }]
 }

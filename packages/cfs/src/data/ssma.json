@@ -1,0 +1,272 @@
+{
+  "id": "ff5a0000-0000-4000-a000-000000000001",
+  "name": "SSMA",
+  "version": "2024.1",
+  "source": "https://www.ssma.com/catalog",
+  "sections": [
+    {
+      "id": "ff5a0001-0000-4000-a000-350516200033",
+      "designation": "350S162-33",
+      "shape": "C",
+      "properties": {
+        "shape": "C",
+        "webDepth_mm": 88.9,
+        "flangeWidth_mm": 41.3,
+        "lipLength_mm": 12.7,
+        "thickness_mm": 0.84,
+        "cornerRadius_mm": 1.27
+      },
+      "material": {
+        "designation": "ASTM A1003 ST33H",
+        "yieldStrength_MPa": 228,
+        "tensileStrength_MPa": 310,
+        "modulusOfElasticity_MPa": 203000,
+        "density_kgPerM3": 7850,
+        "coating": "G60"
+      },
+      "linearMass_kgPerM": 0.93
+    },
+    {
+      "id": "ff5a0001-0000-4000-a000-350516200054",
+      "designation": "350S162-54",
+      "shape": "C",
+      "properties": {
+        "shape": "C",
+        "webDepth_mm": 88.9,
+        "flangeWidth_mm": 41.3,
+        "lipLength_mm": 12.7,
+        "thickness_mm": 1.37,
+        "cornerRadius_mm": 2.06
+      },
+      "material": {
+        "designation": "ASTM A1003 ST50H",
+        "yieldStrength_MPa": 345,
+        "tensileStrength_MPa": 448,
+        "modulusOfElasticity_MPa": 203000,
+        "density_kgPerM3": 7850,
+        "coating": "G60"
+      },
+      "linearMass_kgPerM": 1.55
+    },
+    {
+      "id": "ff5a0001-0000-4000-a000-362516200033",
+      "designation": "362S162-33",
+      "shape": "C",
+      "properties": {
+        "shape": "C",
+        "webDepth_mm": 92.1,
+        "flangeWidth_mm": 41.3,
+        "lipLength_mm": 12.7,
+        "thickness_mm": 0.84,
+        "cornerRadius_mm": 1.27
+      },
+      "material": {
+        "designation": "ASTM A1003 ST33H",
+        "yieldStrength_MPa": 228,
+        "tensileStrength_MPa": 310,
+        "modulusOfElasticity_MPa": 203000,
+        "density_kgPerM3": 7850,
+        "coating": "G60"
+      },
+      "linearMass_kgPerM": 0.97
+    },
+    {
+      "id": "ff5a0001-0000-4000-a000-362516200054",
+      "designation": "362S162-54",
+      "shape": "C",
+      "properties": {
+        "shape": "C",
+        "webDepth_mm": 92.1,
+        "flangeWidth_mm": 41.3,
+        "lipLength_mm": 12.7,
+        "thickness_mm": 1.37,
+        "cornerRadius_mm": 2.06
+      },
+      "material": {
+        "designation": "ASTM A1003 ST50H",
+        "yieldStrength_MPa": 345,
+        "tensileStrength_MPa": 448,
+        "modulusOfElasticity_MPa": 203000,
+        "density_kgPerM3": 7850,
+        "coating": "G60"
+      },
+      "linearMass_kgPerM": 1.61
+    },
+    {
+      "id": "ff5a0001-0000-4000-a000-400516200054",
+      "designation": "400S162-54",
+      "shape": "C",
+      "properties": {
+        "shape": "C",
+        "webDepth_mm": 101.6,
+        "flangeWidth_mm": 41.3,
+        "lipLength_mm": 12.7,
+        "thickness_mm": 1.37,
+        "cornerRadius_mm": 2.06
+      },
+      "material": {
+        "designation": "ASTM A1003 ST50H",
+        "yieldStrength_MPa": 345,
+        "tensileStrength_MPa": 448,
+        "modulusOfElasticity_MPa": 203000,
+        "density_kgPerM3": 7850,
+        "coating": "G60"
+      },
+      "linearMass_kgPerM": 1.71
+    },
+    {
+      "id": "ff5a0001-0000-4000-a000-600516200054",
+      "designation": "600S162-54",
+      "shape": "C",
+      "properties": {
+        "shape": "C",
+        "webDepth_mm": 152.4,
+        "flangeWidth_mm": 41.3,
+        "lipLength_mm": 12.7,
+        "thickness_mm": 1.37,
+        "cornerRadius_mm": 2.06
+      },
+      "material": {
+        "designation": "ASTM A1003 ST50H",
+        "yieldStrength_MPa": 345,
+        "tensileStrength_MPa": 448,
+        "modulusOfElasticity_MPa": 203000,
+        "density_kgPerM3": 7850,
+        "coating": "G60"
+      },
+      "linearMass_kgPerM": 2.31
+    },
+    {
+      "id": "ff5a0002-0000-4000-a000-350412500033",
+      "designation": "350T125-33",
+      "shape": "U",
+      "properties": {
+        "shape": "U",
+        "webDepth_mm": 88.9,
+        "flangeWidth_mm": 31.8,
+        "lipLength_mm": 0,
+        "thickness_mm": 0.84,
+        "cornerRadius_mm": 1.27
+      },
+      "material": {
+        "designation": "ASTM A1003 ST33H",
+        "yieldStrength_MPa": 228,
+        "tensileStrength_MPa": 310,
+        "modulusOfElasticity_MPa": 203000,
+        "density_kgPerM3": 7850,
+        "coating": "G60"
+      },
+      "linearMass_kgPerM": 0.71
+    },
+    {
+      "id": "ff5a0002-0000-4000-a000-350412500054",
+      "designation": "350T125-54",
+      "shape": "U",
+      "properties": {
+        "shape": "U",
+        "webDepth_mm": 88.9,
+        "flangeWidth_mm": 31.8,
+        "lipLength_mm": 0,
+        "thickness_mm": 1.37,
+        "cornerRadius_mm": 2.06
+      },
+      "material": {
+        "designation": "ASTM A1003 ST50H",
+        "yieldStrength_MPa": 345,
+        "tensileStrength_MPa": 448,
+        "modulusOfElasticity_MPa": 203000,
+        "density_kgPerM3": 7850,
+        "coating": "G60"
+      },
+      "linearMass_kgPerM": 1.16
+    },
+    {
+      "id": "ff5a0002-0000-4000-a000-362412500033",
+      "designation": "362T125-33",
+      "shape": "U",
+      "properties": {
+        "shape": "U",
+        "webDepth_mm": 92.1,
+        "flangeWidth_mm": 31.8,
+        "lipLength_mm": 0,
+        "thickness_mm": 0.84,
+        "cornerRadius_mm": 1.27
+      },
+      "material": {
+        "designation": "ASTM A1003 ST33H",
+        "yieldStrength_MPa": 228,
+        "tensileStrength_MPa": 310,
+        "modulusOfElasticity_MPa": 203000,
+        "density_kgPerM3": 7850,
+        "coating": "G60"
+      },
+      "linearMass_kgPerM": 0.74
+    },
+    {
+      "id": "ff5a0002-0000-4000-a000-362412500054",
+      "designation": "362T125-54",
+      "shape": "U",
+      "properties": {
+        "shape": "U",
+        "webDepth_mm": 92.1,
+        "flangeWidth_mm": 31.8,
+        "lipLength_mm": 0,
+        "thickness_mm": 1.37,
+        "cornerRadius_mm": 2.06
+      },
+      "material": {
+        "designation": "ASTM A1003 ST50H",
+        "yieldStrength_MPa": 345,
+        "tensileStrength_MPa": 448,
+        "modulusOfElasticity_MPa": 203000,
+        "density_kgPerM3": 7850,
+        "coating": "G60"
+      },
+      "linearMass_kgPerM": 1.20
+    },
+    {
+      "id": "ff5a0002-0000-4000-a000-400412500054",
+      "designation": "400T125-54",
+      "shape": "U",
+      "properties": {
+        "shape": "U",
+        "webDepth_mm": 101.6,
+        "flangeWidth_mm": 31.8,
+        "lipLength_mm": 0,
+        "thickness_mm": 1.37,
+        "cornerRadius_mm": 2.06
+      },
+      "material": {
+        "designation": "ASTM A1003 ST50H",
+        "yieldStrength_MPa": 345,
+        "tensileStrength_MPa": 448,
+        "modulusOfElasticity_MPa": 203000,
+        "density_kgPerM3": 7850,
+        "coating": "G60"
+      },
+      "linearMass_kgPerM": 1.27
+    },
+    {
+      "id": "ff5a0002-0000-4000-a000-600412500054",
+      "designation": "600T125-54",
+      "shape": "U",
+      "properties": {
+        "shape": "U",
+        "webDepth_mm": 152.4,
+        "flangeWidth_mm": 31.8,
+        "lipLength_mm": 0,
+        "thickness_mm": 1.37,
+        "cornerRadius_mm": 2.06
+      },
+      "material": {
+        "designation": "ASTM A1003 ST50H",
+        "yieldStrength_MPa": 345,
+        "tensileStrength_MPa": 448,
+        "modulusOfElasticity_MPa": 203000,
+        "density_kgPerM3": 7850,
+        "coating": "G60"
+      },
+      "linearMass_kgPerM": 1.78
+    }
+  ]
+}

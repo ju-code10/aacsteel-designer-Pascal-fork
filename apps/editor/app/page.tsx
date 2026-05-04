@@ -6,6 +6,7 @@ import {
   ViewerToolbarLeft,
   ViewerToolbarRight,
 } from '@pascal-app/editor'
+import { CFSRoot } from '@/cfs/components/CFSRoot'
 import { ModeToggle } from '@/cfs/components/toolbar/ModeToggle'
 
 const SIDEBAR_TABS: (SidebarTab & { component: React.ComponentType })[] = [
@@ -19,6 +20,7 @@ const SIDEBAR_TABS: (SidebarTab & { component: React.ComponentType })[] = [
 export default function Home() {
   return (
     <div className="h-screen w-screen">
+      <CFSRoot />
       <Editor
         layoutVersion="v2"
         projectId="local-editor"
