@@ -12,21 +12,32 @@ export interface WallFramingSelection {
   members: CFSMember[]
 }
 
+const EMPTY_SELECTION: WallFramingSelection = {
+  wall: null,
+  framing: null,
+  members: [],
+}
+
 function nodeById(nodes: Record<string, AnyNode>, id: string): AnyNode | undefined {
   return (nodes as unknown as Record<string, AnyNode | undefined>)[id]
 }
 
 /**
  * Resolve the inspector subject for a Pascal `wall` id or a
- * `cfs_wall_framing` id. Returns the wall, the framing for that wall, and
- * every member parented under that framing.
+ * `cfs_wall_framing` id.
+ *
+ * Subscribe to `state.nodes` (a primitive ref that changes only on scene
+ * mutations) and derive the shape via `useMemo`. Returning a fresh object
+ * literal *inside* a `useScene(selector)` would create a new ref on every
+ * tick, breaking Zustand's reference-equality short-circuit and triggering
+ * an infinite re-render loop in React 19's strict-mode dev environment.
  */
 export function useWallFramingSelection(selectedId: string | null): WallFramingSelection {
-  return useScene((state) => {
-    if (!selectedId) return { wall: null, framing: null, members: [] }
-    const nodes = state.nodes as unknown as Record<string, AnyNode>
+  const nodes = useScene((state) => state.nodes) as unknown as Record<string, AnyNode>
+  return useMemo(() => {
+    if (!selectedId) return EMPTY_SELECTION
     const node = nodeById(nodes, selectedId)
-    if (!node) return { wall: null, framing: null, members: [] }
+    if (!node) return EMPTY_SELECTION
 
     let wallId: string | null = null
     let framingId: string | null = null
@@ -46,7 +57,7 @@ export function useWallFramingSelection(selectedId: string | null): WallFramingS
       const framing = node as unknown as CFSWallFraming
       wallId = framing.parentId as unknown as string
     } else {
-      return { wall: null, framing: null, members: [] }
+      return EMPTY_SELECTION
     }
 
     const wall = wallId ? (nodeById(nodes, wallId) ?? null) : null
@@ -65,7 +76,7 @@ export function useWallFramingSelection(selectedId: string | null): WallFramingS
       }
     }
     return { wall, framing, members }
-  })
+  }, [nodes, selectedId])
 }
 
 /**
