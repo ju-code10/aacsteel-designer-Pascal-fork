@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@number-flow/react": "^0.5.14",
+    "@pascal-app/cfs": "*",
     "@pascal-app/core": "*",
     "@pascal-app/editor": "*",
     "@pascal-app/viewer": "*",

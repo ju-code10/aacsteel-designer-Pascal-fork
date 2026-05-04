@@ -6,6 +6,7 @@ import {
   ViewerToolbarLeft,
   ViewerToolbarRight,
 } from '@pascal-app/editor'
+import { ModeToggle } from '@/cfs/components/toolbar/ModeToggle'
 
 const SIDEBAR_TABS: (SidebarTab & { component: React.ComponentType })[] = [
   {
@@ -23,7 +24,12 @@ export default function Home() {
         projectId="local-editor"
         sidebarTabs={SIDEBAR_TABS}
         viewerToolbarLeft={<ViewerToolbarLeft />}
-        viewerToolbarRight={<ViewerToolbarRight />}
+        viewerToolbarRight={
+          <>
+            <ViewerToolbarRight />
+            <ModeToggle />
+          </>
+        }
       />
     </div>
   )
