@@ -1,4 +1,5 @@
 export * from './schema'
+export { cfsMemberLength_mm } from './schema/cfs-member'
 export {
   useCFS,
   type CFSStore,
@@ -22,6 +23,9 @@ export {
   getSectionById,
   useSectionById,
   useIsCFSMode,
+  useWallFramingSelection,
+  useMembersByRole,
+  type WallFramingSelection,
   createIdMemo,
 } from './store/selectors'
 export {
@@ -30,3 +34,10 @@ export {
   ssmaLibraryJson,
   tryParseLibrary,
 } from './library/load-ssma'
+export { CFSFramingSystem } from './systems/framing-system'
+export { CFSWallWatcher } from './systems/wall-watcher'
+export { runFramingPass } from './systems/framing-pass'
+export {
+  processDirtyWalls,
+  sweepWallsForFraming,
+} from './systems/wall-watcher-logic'

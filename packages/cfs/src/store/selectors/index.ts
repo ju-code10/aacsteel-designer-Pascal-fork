@@ -7,4 +7,9 @@ export {
 export { getActiveLibrary, useActiveLibrary } from './use-active-library'
 export { getSectionById, useSectionById } from './use-section-by-id'
 export { useIsCFSMode } from './use-is-cfs-mode'
+export {
+  useWallFramingSelection,
+  useMembersByRole,
+  type WallFramingSelection,
+} from './use-wall-framing'
 export { createIdMemo } from './lib/memoize'
