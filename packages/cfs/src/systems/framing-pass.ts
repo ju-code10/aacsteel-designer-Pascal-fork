@@ -162,10 +162,32 @@ interface FramingProcessResult {
 }
 
 /**
+ * Re-entry guard. Each `useScene.createNode` inside this pass calls `set()`
+ * synchronously, which fires every Zustand subscriber — including the one
+ * that drives this very pass. Without the guard, creating member 1 of N
+ * triggers a recursive runFramingPass that sees the framing still dirty,
+ * tries to create members 2..N, recurses again on member 2, and so on
+ * until the stack overflows around member 10–15. The fix: nested calls
+ * return early; the outermost call completes naturally and the post-pass
+ * subscriber tick (after we clear the dirty marker) becomes a no-op.
+ */
+let isRunning = false
+
+/**
  * Process every dirty `cfs_wall_framing` id. Pure orchestrator: takes the
  * stores it needs as references, returns a per-framing status array. Idempotent.
  */
 export function runFramingPass(): FramingProcessResult[] {
+  if (isRunning) return []
+  isRunning = true
+  try {
+    return runFramingPassInner()
+  } finally {
+    isRunning = false
+  }
+}
+
+function runFramingPassInner(): FramingProcessResult[] {
   const sceneState = useScene.getState()
   const cfsState = useCFS.getState()
   const settings = getProjectSettings(sceneState)

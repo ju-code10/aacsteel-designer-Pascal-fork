@@ -278,4 +278,29 @@ describe('runFramingPass — slice 3 (steps 1–4)', () => {
     expect(results[0].status).toBe('zero-length-wall')
     expect(membersOf(framingId).length).toBe(0)
   })
+
+  it('subscriber-driven re-entry does not stack-overflow', async () => {
+    // Reproduces the bug fixed by the isRunning guard: every createNode
+    // inside the pass calls set() which fires every useScene subscriber. A
+    // subscriber that calls runFramingPass would re-enter mid-loop, see the
+    // framing still dirty, try to create the remaining members, recurse on
+    // each, and blow the stack at member ~10–15.
+    const { framingId } = await seedScene({ wallLength_m: 3.6, studSpacingOverride_mm: 600 })
+    let recursionAttempts = 0
+    const unsub = useScene.subscribe((state, prev) => {
+      if (state.nodes !== prev.nodes) {
+        recursionAttempts += 1
+        runFramingPass()
+      }
+    })
+    try {
+      runFramingPass()
+    } finally {
+      unsub()
+    }
+    // 9 members + 1 framing aggregate-update -> ~10 createNode/updateNode calls.
+    // Without the guard, this would never reach the assertion.
+    expect(recursionAttempts).toBeGreaterThan(0)
+    expect(membersOf(framingId).length).toBe(9)
+  })
 })
