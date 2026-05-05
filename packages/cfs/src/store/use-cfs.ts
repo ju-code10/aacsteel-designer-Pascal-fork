@@ -20,6 +20,7 @@ import { tryParseLibrary } from '../library/load-ssma'
 export type CFSInspectorTab = 'wall' | 'opening' | 'panel' | 'holes' | 'settings'
 export type CFSUnitsDisplay = 'metric' | 'imperial'
 export type CFSMemberLibraryMap = Record<CFSMemberLibraryId, CFSMemberLibrary>
+export type CFSActiveTool = 'cfs-door' | 'cfs-window' | null
 
 export interface CFSStoreState {
   // mode
@@ -29,6 +30,9 @@ export interface CFSStoreState {
   inspectorTab: CFSInspectorTab
   hoveredMemberId: string | null
   selectedPanelId: string | null
+
+  // active CFS tool (separate from Pascal's tool union since we cannot extend it)
+  activeTool: CFSActiveTool
 
   // libraries
   memberLibraries: CFSMemberLibraryMap
@@ -50,6 +54,8 @@ export interface CFSStoreActions {
   setHoveredMember: (id: string | null) => void
   setSelectedPanel: (id: string | null) => void
 
+  setActiveTool: (tool: CFSActiveTool) => void
+
   loadLibrary: (json: unknown) => Promise<void>
   setActiveLibrary: (id: CFSMemberLibraryId) => void
 
@@ -64,6 +70,7 @@ const initialState: CFSStoreState = {
   inspectorTab: 'wall',
   hoveredMemberId: null,
   selectedPanelId: null,
+  activeTool: null,
   memberLibraries: {},
   activeLibraryId: null,
   unitsDisplay: 'imperial',
@@ -173,6 +180,8 @@ export const useCFS = create<CFSStore>()(
       setInspectorTab: (tab) => set({ inspectorTab: tab }),
       setHoveredMember: (id) => set({ hoveredMemberId: id }),
       setSelectedPanel: (id) => set({ selectedPanelId: id }),
+
+      setActiveTool: (tool) => set({ activeTool: tool }),
 
       loadLibrary: async (json) => {
         set({ isLibraryLoading: true, libraryLoadError: null })

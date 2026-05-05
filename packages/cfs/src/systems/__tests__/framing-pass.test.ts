@@ -3,6 +3,8 @@ import { useScene } from '@pascal-app/core'
 import { ssmaLibraryJson } from '../../library/load-ssma'
 import { CFSProject } from '../../schema/cfs-project'
 import type { CFSMember } from '../../schema/cfs-member'
+import type { CFSOpening } from '../../schema/cfs-opening'
+import { CFSOpening as CFSOpeningSchema } from '../../schema/cfs-opening'
 import type { CFSWallFraming } from '../../schema/cfs-wall-framing'
 import { CFSProjectSettings } from '../../schema/primitives'
 import { useCFS } from '../../store/use-cfs'
@@ -279,7 +281,7 @@ describe('runFramingPass — slice 3 (steps 1–4)', () => {
     expect(membersOf(framingId).length).toBe(0)
   })
 
-  it('subscriber-driven re-entry does not stack-overflow', async () => {
+  it('subscriber-driven re-entry does not stack-overflow (slice 3 regression)', async () => {
     // Reproduces the bug fixed by the isRunning guard: every createNode
     // inside the pass calls set() which fires every useScene subscriber. A
     // subscriber that calls runFramingPass would re-enter mid-loop, see the
@@ -302,5 +304,252 @@ describe('runFramingPass — slice 3 (steps 1–4)', () => {
     // Without the guard, this would never reach the assertion.
     expect(recursionAttempts).toBeGreaterThan(0)
     expect(membersOf(framingId).length).toBe(9)
+  })
+})
+
+function makeOpening(opts: {
+  id: string
+  framingId: string
+  type: 'door' | 'window'
+  position_mm: number
+  width_mm: number
+  height_mm: number
+  sillHeight_mm?: number
+  headerTypeOverride?: 'box' | 'L-header' | 'back-to-back' | 'single-track' | 'proprietary' | null
+}): CFSOpening {
+  return CFSOpeningSchema.parse({
+    type: 'cfs_opening',
+    id: opts.id,
+    parentId: opts.framingId,
+    openingType: opts.type,
+    positionAlongWall_mm: opts.position_mm,
+    roughDimensions: { width_mm: opts.width_mm, height_mm: opts.height_mm },
+    sillHeight_mm: opts.sillHeight_mm,
+    headerTypeOverride: opts.headerTypeOverride ?? null,
+    generatedMemberIds: [],
+  }) as CFSOpening
+}
+
+function openingsOf(framingId: string): CFSOpening[] {
+  const out: CFSOpening[] = []
+  for (const n of Object.values(useScene.getState().nodes)) {
+    if (
+      (n as { type?: string }).type === 'cfs_opening' &&
+      (n as { parentId?: string }).parentId === framingId
+    ) {
+      out.push(n as unknown as CFSOpening)
+    }
+  }
+  return out
+}
+
+describe('runFramingPass — slice 4 (openings)', () => {
+  beforeEach(() => {
+    resetAll()
+  })
+
+  it('FRM-S4-01: canonical wall with one door produces king/jamb/header members and removes displaced field studs', async () => {
+    const { framingId } = await seedScene({ wallLength_m: 3.6, studSpacingOverride_mm: 600 })
+    runFramingPass()
+    const opening = makeOpening({
+      id: '00000000-0000-4000-8aaa-000000000001',
+      framingId,
+      type: 'door',
+      position_mm: 600,
+      width_mm: 900,
+      height_mm: 2100,
+    })
+    useScene.getState().createNode(opening as unknown as never, framingId as never)
+    useScene.getState().dirtyNodes.add(framingId as never)
+    runFramingPass()
+
+    const members = membersOf(framingId)
+    const counts: Record<string, number> = {}
+    for (const m of members) counts[m.role] = (counts[m.role] ?? 0) + 1
+    expect(counts['king-stud']).toBe(2)
+    expect(counts['jamb-stud']).toBe(2)
+    expect(counts['header']).toBe(4) // default box header
+    // Field studs at 600 and 1200 are displaced; 1800/2400/3000 remain (3).
+    expect(counts['stud']).toBe(3)
+    // Cripples above: only the 1200 candidate falls inside (jamb left, jamb right) → 1
+    expect(counts['cripple']).toBe(1)
+    expect(counts['chord-stud']).toBe(2)
+  })
+
+  it('FRM-S4-02: window adds sill, sill-track, and cripples below', async () => {
+    const { framingId } = await seedScene({ wallLength_m: 3.6, studSpacingOverride_mm: 600 })
+    runFramingPass()
+    const win = makeOpening({
+      id: '00000000-0000-4000-8aaa-000000000002',
+      framingId,
+      type: 'window',
+      position_mm: 600,
+      width_mm: 1200,
+      height_mm: 1000,
+      sillHeight_mm: 900,
+    })
+    useScene.getState().createNode(win as unknown as never, framingId as never)
+    useScene.getState().dirtyNodes.add(framingId as never)
+    runFramingPass()
+
+    const members = membersOf(framingId)
+    const counts: Record<string, number> = {}
+    for (const m of members) counts[m.role] = (counts[m.role] ?? 0) + 1
+    expect(counts['sill']).toBe(1)
+    expect(counts['sill-track']).toBe(1)
+    // 1200 mm wide window at x=600 — jamb range (~620, 1780). Field stud at 1200 is inside.
+    // Cripples above and below at 1200 → 2 cripples.
+    expect(counts['cripple']).toBe(2)
+  })
+
+  it('FRM-S4-03: opening at the wall edge promotes the start chord to king-stud', async () => {
+    const { framingId } = await seedScene({ wallLength_m: 3.6, studSpacingOverride_mm: 600 })
+    runFramingPass()
+    const door = makeOpening({
+      id: '00000000-0000-4000-8aaa-000000000003',
+      framingId,
+      type: 'door',
+      position_mm: 0,
+      width_mm: 900,
+      height_mm: 2100,
+    })
+    useScene.getState().createNode(door as unknown as never, framingId as never)
+    useScene.getState().dirtyNodes.add(framingId as never)
+    runFramingPass()
+
+    const members = membersOf(framingId)
+    const counts: Record<string, number> = {}
+    for (const m of members) counts[m.role] = (counts[m.role] ?? 0) + 1
+    // Two chord positions, but the start chord is now a king-stud.
+    expect(counts['chord-stud']).toBe(1)
+    // king-stud count = 1 (right of opening) + 1 (promoted chord at x=0) = 2.
+    expect(counts['king-stud']).toBe(2)
+  })
+
+  it('FRM-S4-04: editing opening width re-lays out within one pass and keeps the framing valid', async () => {
+    const { framingId } = await seedScene({ wallLength_m: 3.6, studSpacingOverride_mm: 600 })
+    runFramingPass()
+    const door = makeOpening({
+      id: '00000000-0000-4000-8aaa-000000000004',
+      framingId,
+      type: 'door',
+      position_mm: 600,
+      width_mm: 900,
+      height_mm: 2100,
+    })
+    useScene.getState().createNode(door as unknown as never, framingId as never)
+    useScene.getState().dirtyNodes.add(framingId as never)
+    runFramingPass()
+    const beforeJambs = membersOf(framingId)
+      .filter((m) => m.role === 'jamb-stud')
+      .map((m) => m.start.x_mm)
+      .sort((a, b) => a - b)
+
+    useScene.getState().updateNode(door.id as unknown as never, {
+      roughDimensions: { width_mm: 1500, height_mm: 2100 },
+    } as unknown as never)
+    useScene.getState().dirtyNodes.add(framingId as never)
+    runFramingPass()
+    const afterJambs = membersOf(framingId)
+      .filter((m) => m.role === 'jamb-stud')
+      .map((m) => m.start.x_mm)
+      .sort((a, b) => a - b)
+    expect(afterJambs[1]! - afterJambs[0]!).toBeGreaterThan(beforeJambs[1]! - beforeJambs[0]!)
+  })
+
+  it('FRM-S4-05: deleting an opening returns the framing to plain-wall layout', async () => {
+    const { framingId } = await seedScene({ wallLength_m: 3.6, studSpacingOverride_mm: 600 })
+    runFramingPass()
+    const door = makeOpening({
+      id: '00000000-0000-4000-8aaa-000000000005',
+      framingId,
+      type: 'door',
+      position_mm: 600,
+      width_mm: 900,
+      height_mm: 2100,
+    })
+    useScene.getState().createNode(door as unknown as never, framingId as never)
+    useScene.getState().dirtyNodes.add(framingId as never)
+    runFramingPass()
+    expect(membersOf(framingId).some((m) => m.role === 'king-stud')).toBe(true)
+
+    useScene.getState().deleteNode(door.id as unknown as never)
+    useScene.getState().dirtyNodes.add(framingId as never)
+    runFramingPass()
+    const members = membersOf(framingId)
+    expect(members.some((m) => m.role === 'king-stud')).toBe(false)
+    expect(members.some((m) => m.role === 'jamb-stud')).toBe(false)
+    expect(members.some((m) => m.role === 'header')).toBe(false)
+    expect(members.filter((m) => m.role === 'stud').length).toBe(5)
+  })
+
+  it('FRM-S4-06: opening wider than the wall is reported as invalid; other openings still framed', async () => {
+    const { framingId } = await seedScene({ wallLength_m: 3.6, studSpacingOverride_mm: 600 })
+    runFramingPass()
+    const big = makeOpening({
+      id: '00000000-0000-4000-8aaa-000000000006',
+      framingId,
+      type: 'door',
+      position_mm: 100,
+      width_mm: 5000,
+      height_mm: 2100,
+    })
+    const ok = makeOpening({
+      id: '00000000-0000-4000-8aaa-000000000007',
+      framingId,
+      type: 'door',
+      position_mm: 600,
+      width_mm: 900,
+      height_mm: 2100,
+    })
+    useScene.getState().createNode(big as unknown as never, framingId as never)
+    useScene.getState().createNode(ok as unknown as never, framingId as never)
+    useScene.getState().dirtyNodes.add(framingId as never)
+    const results = runFramingPass()
+    expect(results[0].invalidOpeningIds).toContain(big.id)
+    // Valid opening still produced kings.
+    expect(membersOf(framingId).some((m) => m.role === 'king-stud')).toBe(true)
+  })
+
+  it('FRM-S4-07: idempotent over a single opening — second pass produces no new ids', async () => {
+    const { framingId } = await seedScene({ wallLength_m: 3.6, studSpacingOverride_mm: 600 })
+    runFramingPass()
+    const door = makeOpening({
+      id: '00000000-0000-4000-8aaa-000000000008',
+      framingId,
+      type: 'door',
+      position_mm: 600,
+      width_mm: 900,
+      height_mm: 2100,
+    })
+    useScene.getState().createNode(door as unknown as never, framingId as never)
+    useScene.getState().dirtyNodes.add(framingId as never)
+    runFramingPass()
+    const idsBefore = new Set(membersOf(framingId).map((m) => m.id))
+
+    useScene.getState().dirtyNodes.add(framingId as never)
+    runFramingPass()
+    const idsAfter = new Set(membersOf(framingId).map((m) => m.id))
+    expect(idsAfter.size).toBe(idsBefore.size)
+    for (const id of idsBefore) expect(idsAfter.has(id)).toBe(true)
+  })
+
+  it('FRM-S4-08: opening generatedMemberIds gets populated after framing pass', async () => {
+    const { framingId } = await seedScene({ wallLength_m: 3.6, studSpacingOverride_mm: 600 })
+    runFramingPass()
+    const door = makeOpening({
+      id: '00000000-0000-4000-8aaa-000000000009',
+      framingId,
+      type: 'door',
+      position_mm: 600,
+      width_mm: 900,
+      height_mm: 2100,
+    })
+    useScene.getState().createNode(door as unknown as never, framingId as never)
+    useScene.getState().dirtyNodes.add(framingId as never)
+    runFramingPass()
+    const opening = openingsOf(framingId)[0]!
+    // Door generates: 2 kings + 2 jambs + 4 header pieces + 1 cripple above = 9 members.
+    expect(opening.generatedMemberIds.length).toBe(9)
   })
 })

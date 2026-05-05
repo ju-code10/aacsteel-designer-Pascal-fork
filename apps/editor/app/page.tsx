@@ -8,6 +8,7 @@ import {
 } from '@pascal-app/editor'
 import { CFSRoot } from '@/cfs/components/CFSRoot'
 import { ModeToggle } from '@/cfs/components/toolbar/ModeToggle'
+import { OpeningToolbar } from '@/cfs/components/toolbar/OpeningToolbar'
 
 const SIDEBAR_TABS: (SidebarTab & { component: React.ComponentType })[] = [
   {
@@ -29,6 +30,7 @@ export default function Home() {
         viewerToolbarRight={
           <>
             <ViewerToolbarRight />
+            <OpeningToolbar />
             <ModeToggle />
           </>
         }

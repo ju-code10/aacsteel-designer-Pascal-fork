@@ -1,8 +1,16 @@
 'use client'
 
-import { CFSFramingSystem, CFSWallWatcher, ssmaLibraryJson, useCFS } from '@pascal-app/cfs'
+import {
+  CFSFramingSystem,
+  CFSOpeningWatcher,
+  CFSWallWatcher,
+  ssmaLibraryJson,
+  useCFS,
+} from '@pascal-app/cfs'
 import { useEffect } from 'react'
 import { InspectorPanel } from './panels/InspectorPanel'
+import { CFSDoorTool } from './tools/CFSDoorTool'
+import { CFSWindowTool } from './tools/CFSWindowTool'
 
 /**
  * CFSRoot mounts the headless CFS systems and the floating inspector. It is
@@ -28,7 +36,10 @@ export function CFSRoot(): React.JSX.Element {
   return (
     <>
       <CFSWallWatcher />
+      <CFSOpeningWatcher />
       <CFSFramingSystem />
+      <CFSDoorTool />
+      <CFSWindowTool />
       <InspectorPanel />
     </>
   )

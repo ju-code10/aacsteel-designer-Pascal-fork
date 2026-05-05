@@ -5,7 +5,10 @@ import {
   useMembersByRole,
   useWallFramingSelection,
 } from '@pascal-app/cfs'
+import type { CFSOpening } from '@pascal-app/cfs'
+import { useScene, type AnyNode } from '@pascal-app/core'
 import { useViewer } from '@pascal-app/viewer'
+import { OpeningBody } from './OpeningBody'
 import { WallFramingBody } from './WallFramingBody'
 
 const PANEL_CLASSES =
@@ -26,6 +29,13 @@ export function InspectorPanel(): React.JSX.Element | null {
   const selectedId = useViewer((s) => s.selection.selectedIds[0] ?? null)
   const { wall, framing, members } = useWallFramingSelection(selectedId)
   const membersByRole = useMembersByRole(members)
+  // If the selected node is itself a cfs_opening, show the opening editor.
+  const selectedOpening = useScene((s) => {
+    if (!selectedId) return null
+    const node = (s.nodes as unknown as Record<string, AnyNode | undefined>)[selectedId]
+    if (!node || (node as { type?: string }).type !== 'cfs_opening') return null
+    return node as unknown as CFSOpening
+  })
 
   if (!isCFSMode) return null
 
@@ -40,7 +50,9 @@ export function InspectorPanel(): React.JSX.Element | null {
           {libraryError}
         </p>
       ) : null}
-      {wall && framing ? (
+      {selectedOpening ? (
+        <OpeningBody opening={selectedOpening} />
+      ) : wall && framing ? (
         <WallFramingBody
           wall={wall as { id: string; start?: readonly [number, number]; end?: readonly [number, number]; height?: number }}
           framing={framing}
