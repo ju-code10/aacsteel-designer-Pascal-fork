@@ -1,0 +1,68 @@
+import type { CFSPoint3D } from '../schema/primitives'
+
+/**
+ * Pascal's WallNode shape we depend on. We type it locally instead of importing
+ * from `@pascal-app/core` to keep the library headless and unit-testable.
+ *
+ * Pascal stores `start` / `end` as `[x_m, y_m]` in level coordinates (meters)
+ * and `height` in meters as well. The wall's local frame:
+ *   - x along (end - start), 0 at start
+ *   - y vertical, 0 at the wall base
+ *   - z perpendicular to the wall (unused by framing math; geometry uses it in §5.3)
+ */
+export interface PascalWallLike {
+  id: string
+  start: readonly [number, number]
+  end: readonly [number, number]
+  height?: number
+}
+
+const M_TO_MM = 1000
+
+export function wallLengthFromPascalWall(wall: PascalWallLike): number {
+  const dx = wall.end[0] - wall.start[0]
+  const dy = wall.end[1] - wall.start[1]
+  return Math.hypot(dx, dy) * M_TO_MM
+}
+
+export function wallHeightFromPascalWall(wall: PascalWallLike): number | null {
+  return typeof wall.height === 'number' ? wall.height * M_TO_MM : null
+}
+
+export interface WallLocalPoint {
+  x_mm: number
+  y_mm: number
+  z_mm: number
+}
+
+/**
+ * Transform a wall-local point into Pascal world coordinates (mm). The wall's
+ * local x-axis runs from `start` to `end`; z is perpendicular in the level
+ * plane (right-hand rule about +y); y is vertical.
+ *
+ * Pascal level coords are 2D (x, z in three-space convention), with y always
+ * vertical. We emit a CFSPoint3D in millimetres, in the same level basis the
+ * other CFS nodes use.
+ */
+export function localToWorld(wall: PascalWallLike, p: WallLocalPoint): CFSPoint3D {
+  const length_mm = wallLengthFromPascalWall(wall)
+  if (length_mm === 0) {
+    return {
+      x_mm: wall.start[0] * M_TO_MM,
+      y_mm: p.y_mm,
+      z_mm: wall.start[1] * M_TO_MM,
+    }
+  }
+  const dx = (wall.end[0] - wall.start[0]) * M_TO_MM
+  const dz = (wall.end[1] - wall.start[1]) * M_TO_MM
+  const ux = dx / length_mm
+  const uz = dz / length_mm
+  // Perpendicular in the level plane (rotate (ux, uz) by +90° around y).
+  const px = -uz
+  const pz = ux
+  return {
+    x_mm: wall.start[0] * M_TO_MM + ux * p.x_mm + px * p.z_mm,
+    y_mm: p.y_mm,
+    z_mm: wall.start[1] * M_TO_MM + uz * p.x_mm + pz * p.z_mm,
+  }
+}

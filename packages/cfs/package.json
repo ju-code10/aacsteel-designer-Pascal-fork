@@ -1,0 +1,47 @@
+{
+  "name": "@pascal-app/cfs",
+  "version": "0.0.1",
+  "description": "Cold-formed steel detailing extension for Pascal Editor (AACSteel-Designer).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "tsc --build --watch",
+    "test": "bun test",
+    "check-types": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^18 || ^19"
+  },
+  "dependencies": {
+    "@pascal-app/core": "*",
+    "zod": "^4.3.6",
+    "zustand": "^5"
+  },
+  "devDependencies": {
+    "@pascal/typescript-config": "*",
+    "@types/react": "^19.2.2",
+    "react": "^19.2.4",
+    "typescript": "5.9.3"
+  },
+  "keywords": [
+    "cfs",
+    "cold-formed-steel",
+    "framing",
+    "ssma",
+    "detailing"
+  ],
+  "license": "MIT"
+}
