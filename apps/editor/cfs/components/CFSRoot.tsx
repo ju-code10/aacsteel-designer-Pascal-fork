@@ -4,15 +4,18 @@ import { useScene } from '@pascal-app/core'
 import {
   CFSFramingSystem,
   CFSOpeningWatcher,
+  CFSServiceHoleSystem,
   CFSWallWatcher,
   ssmaLibraryJson,
   useCFS,
 } from '@pascal-app/cfs'
 import { useEffect } from 'react'
+import { useCFSShortcuts } from '../lib/use-cfs-shortcuts'
 import { applyWallVisibility, resetWallVisibilityCache } from '../lib/wall-visibility'
 import { CFSGeometrySystem } from '../systems/CFSGeometrySystem'
 import { InspectorPanel } from './panels/InspectorPanel'
 import { CFSDoorTool } from './tools/CFSDoorTool'
+import { CFSServiceHoleTool } from './tools/CFSServiceHoleTool'
 import { CFSWindowTool } from './tools/CFSWindowTool'
 
 /**
@@ -34,6 +37,10 @@ import { CFSWindowTool } from './tools/CFSWindowTool'
 export function CFSRoot(): React.JSX.Element {
   const loadLibrary = useCFS((s) => s.loadLibrary)
   const hasLibrary = useCFS((s) => Object.keys(s.memberLibraries).length > 0)
+  const isCFSMode = useCFS((s) => s.isCFSMode)
+  // §7.6 — register tool shortcuts (T/W/H/Esc) only while in CFS mode so
+  // Pascal's bindings remain unaffected in architectural mode.
+  useCFSShortcuts(isCFSMode)
 
   useEffect(() => {
     if (hasLibrary) return
@@ -64,8 +71,10 @@ export function CFSRoot(): React.JSX.Element {
       <CFSOpeningWatcher />
       <CFSFramingSystem />
       <CFSGeometrySystem />
+      <CFSServiceHoleSystem />
       <CFSDoorTool />
       <CFSWindowTool />
+      <CFSServiceHoleTool />
       <InspectorPanel />
     </>
   )

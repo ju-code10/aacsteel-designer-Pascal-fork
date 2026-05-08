@@ -1,11 +1,14 @@
 'use client'
 
 import { useCFS } from '@pascal-app/cfs'
+import type { CFSActiveTool } from '@pascal-app/cfs'
 import {
   OPENING_TOOL_DOOR_LABEL,
   OPENING_TOOL_DOOR_TOOLTIP,
   OPENING_TOOL_WINDOW_LABEL,
   OPENING_TOOL_WINDOW_TOOLTIP,
+  SERVICE_HOLE_TOOL_LABEL,
+  SERVICE_HOLE_TOOL_TOOLTIP,
 } from '../../lib/strings'
 
 const BUTTON_BASE =
@@ -29,12 +32,12 @@ export function OpeningToolbar(): React.JSX.Element | null {
 
   if (!isCFSMode) return null
 
-  const click = (tool: 'cfs-door' | 'cfs-window') => () => {
+  const click = (tool: NonNullable<CFSActiveTool>) => () => {
     setActiveTool(activeTool === tool ? null : tool)
   }
 
   return (
-    <div className="flex items-center gap-1" role="group" aria-label="CFS opening tools">
+    <div className="flex items-center gap-1" role="group" aria-label="CFS tools">
       <button
         type="button"
         className={`${BUTTON_BASE} ${activeTool === 'cfs-door' ? BUTTON_ACTIVE : BUTTON_INACTIVE}`}
@@ -52,6 +55,15 @@ export function OpeningToolbar(): React.JSX.Element | null {
         aria-pressed={activeTool === 'cfs-window'}
       >
         {OPENING_TOOL_WINDOW_LABEL}
+      </button>
+      <button
+        type="button"
+        className={`${BUTTON_BASE} ${activeTool === 'cfs-service-hole' ? BUTTON_ACTIVE : BUTTON_INACTIVE}`}
+        onClick={click('cfs-service-hole')}
+        title={SERVICE_HOLE_TOOL_TOOLTIP}
+        aria-pressed={activeTool === 'cfs-service-hole'}
+      >
+        {SERVICE_HOLE_TOOL_LABEL}
       </button>
     </div>
   )

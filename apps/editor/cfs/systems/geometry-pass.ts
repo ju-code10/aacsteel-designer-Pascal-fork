@@ -91,10 +91,14 @@ function memberSignature(
 ): string {
   const lenInt = Math.round(cfsMemberLength_mm(m))
   const orientInt = Math.round(m.orientation_deg)
+  // Slice 6 — oblong holes have `oblongLength_mm` along the member axis;
+  // it must participate in the signature so editing the long-axis size
+  // triggers a CSG rebuild. (Slice 5 omitted this; HOL-11 tests the inverse —
+  // that compliance/stiffener flips do NOT rebuild geometry.)
   const holeKey = holes
     .map(
       (h) =>
-        `${h.id}:${Math.round(h.positionAlongMember_mm)}:${Math.round(h.diameter_mm)}:${h.shape}`,
+        `${h.id}:${Math.round(h.positionAlongMember_mm)}:${Math.round(h.diameter_mm)}:${h.shape}:${h.oblongLength_mm ?? 0}`,
     )
     .sort()
     .join(',')

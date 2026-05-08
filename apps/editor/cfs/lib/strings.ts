@@ -18,3 +18,18 @@ export const OPENING_INSPECTOR_HEIGHT_LABEL = 'Rough height'
 export const OPENING_INSPECTOR_SILL_LABEL = 'Sill height'
 export const OPENING_INSPECTOR_HEADER_LABEL = 'Header type'
 export const OPENING_INSPECTOR_HEADER_DEFAULT = 'Project default'
+
+export const SERVICE_HOLE_TOOL_LABEL = 'Service hole'
+export const SERVICE_HOLE_TOOL_TOOLTIP =
+  'Place a service hole on a stud or track. Click the wall near the member; the closest CFS member receives the hole.'
+
+export const SERVICE_HOLE_INSPECTOR_TITLE = 'Service hole'
+export const SERVICE_HOLE_INSPECTOR_POSITION_LABEL = 'Position along member'
+export const SERVICE_HOLE_INSPECTOR_DIAMETER_LABEL = 'Diameter'
+export const SERVICE_HOLE_INSPECTOR_OBLONG_LENGTH_LABEL = 'Oblong length'
+export const SERVICE_HOLE_INSPECTOR_SHAPE_LABEL = 'Shape'
+export const SERVICE_HOLE_INSPECTOR_STIFFENER_LABEL = 'Has web stiffener'
+
+export const COMPLIANCE_BADGE_COMPLIANT = 'Compliant'
+export const COMPLIANCE_BADGE_NON_COMPLIANT = 'Non-compliant'
+export const COMPLIANCE_BADGE_UNCHECKED = 'Checking…'

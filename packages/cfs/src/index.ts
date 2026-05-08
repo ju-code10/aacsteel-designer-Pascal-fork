@@ -9,6 +9,8 @@ export {
   type CFSUnitsDisplay,
   type CFSMemberLibraryMap,
   type CFSActiveTool,
+  type CFSServiceHoleShape,
+  type CFSServiceHoleToolSettings,
 } from './store/use-cfs'
 export { withBatchedUndo, currentBatchDepth } from './store/with-batched-undo'
 export { findSiteRootId } from './store/find-site-root'
@@ -42,7 +44,9 @@ export {
 export { CFSFramingSystem } from './systems/framing-system'
 export { CFSWallWatcher } from './systems/wall-watcher'
 export { CFSOpeningWatcher } from './systems/opening-watcher'
+export { CFSServiceHoleSystem } from './systems/service-hole-system'
 export { runFramingPass } from './systems/framing-pass'
+export { runServiceHolePass, verdictsEquivalent } from './systems/service-hole-pass'
 export {
   processDirtyWalls,
   sweepWallsForFraming,
@@ -64,3 +68,24 @@ export {
   sectionPolygon,
   UnsupportedSectionShapeError,
 } from './lib/section-polygon'
+export {
+  type PrePunch,
+  type ServiceHoleValidatorInput,
+  validateServiceHole,
+  expandPrePunches,
+  holeLengthAlongMember,
+  checkR1End,
+  checkR2Width,
+  checkR3Spacing,
+  checkR4Stiffener,
+} from './lib/service-hole-validator'
+export {
+  AISI_R1,
+  AISI_R2,
+  AISI_R3,
+  AISI_R4,
+  R1_MIN_END_DISTANCE_MM,
+  R2_MAX_WIDTH_FRACTION_OF_WEB,
+  R3_SPACING_MULTIPLIER,
+  R4_STIFFENER_THRESHOLD_FRACTION,
+} from './lib/aisi-thresholds'

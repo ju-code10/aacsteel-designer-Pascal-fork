@@ -20,7 +20,20 @@ import { tryParseLibrary } from '../library/load-ssma'
 export type CFSInspectorTab = 'wall' | 'opening' | 'panel' | 'holes' | 'settings'
 export type CFSUnitsDisplay = 'metric' | 'imperial'
 export type CFSMemberLibraryMap = Record<CFSMemberLibraryId, CFSMemberLibrary>
-export type CFSActiveTool = 'cfs-door' | 'cfs-window' | null
+export type CFSActiveTool = 'cfs-door' | 'cfs-window' | 'cfs-service-hole' | null
+export type CFSServiceHoleShape = 'round' | 'oblong'
+
+/** §7.3.2 — settings shared by `ServiceHoleTool` placement and `ServiceHoleGhost` hover preview. */
+export interface CFSServiceHoleToolSettings {
+  /** Last-used diameter (mm). Default 38 mm = SSMA pre-punch size. */
+  lastDiameter_mm: number
+  /** Round (default) or oblong (Shift while clicking). */
+  shape: CFSServiceHoleShape
+  /** When true (Alt held), snap pos to nearest 50 mm multiple. */
+  snapToGrid: boolean
+  /** Fixed oblong width across the web — SSMA convention is 38 mm. */
+  oblongWidth_mm: number
+}
 
 export interface CFSStoreState {
   // mode
@@ -30,9 +43,11 @@ export interface CFSStoreState {
   inspectorTab: CFSInspectorTab
   hoveredMemberId: string | null
   selectedPanelId: string | null
+  selectedHoleId: string | null
 
   // active CFS tool (separate from Pascal's tool union since we cannot extend it)
   activeTool: CFSActiveTool
+  serviceHoleTool: CFSServiceHoleToolSettings
 
   // libraries
   memberLibraries: CFSMemberLibraryMap
@@ -53,8 +68,12 @@ export interface CFSStoreActions {
   setInspectorTab: (tab: CFSInspectorTab) => void
   setHoveredMember: (id: string | null) => void
   setSelectedPanel: (id: string | null) => void
+  setSelectedHole: (id: string | null) => void
 
   setActiveTool: (tool: CFSActiveTool) => void
+  setServiceHoleDiameter: (diameter_mm: number) => void
+  setServiceHoleShape: (shape: CFSServiceHoleShape) => void
+  setServiceHoleSnap: (snap: boolean) => void
 
   loadLibrary: (json: unknown) => Promise<void>
   setActiveLibrary: (id: CFSMemberLibraryId) => void
@@ -70,7 +89,14 @@ const initialState: CFSStoreState = {
   inspectorTab: 'wall',
   hoveredMemberId: null,
   selectedPanelId: null,
+  selectedHoleId: null,
   activeTool: null,
+  serviceHoleTool: {
+    lastDiameter_mm: 38,
+    shape: 'round',
+    snapToGrid: false,
+    oblongWidth_mm: 38,
+  },
   memberLibraries: {},
   activeLibraryId: null,
   unitsDisplay: 'imperial',
@@ -78,6 +104,10 @@ const initialState: CFSStoreState = {
   isLibraryLoading: false,
   libraryLoadError: null,
 }
+
+/** §7.3.2 — clamps for the diameter stepper / scroll-wheel adjustment. */
+const SERVICE_HOLE_MIN_DIAMETER_MM = 12
+const SERVICE_HOLE_MAX_DIAMETER_MM = 600 // hard cap; the tool further clamps to web depth at point of use
 
 function generateUuid(): string {
   // crypto.randomUUID is available in modern browsers, Node 19+, and Bun.
@@ -180,8 +210,22 @@ export const useCFS = create<CFSStore>()(
       setInspectorTab: (tab) => set({ inspectorTab: tab }),
       setHoveredMember: (id) => set({ hoveredMemberId: id }),
       setSelectedPanel: (id) => set({ selectedPanelId: id }),
+      setSelectedHole: (id) => set({ selectedHoleId: id }),
 
       setActiveTool: (tool) => set({ activeTool: tool }),
+      setServiceHoleDiameter: (diameter_mm) => {
+        const clamped = Math.min(
+          Math.max(diameter_mm, SERVICE_HOLE_MIN_DIAMETER_MM),
+          SERVICE_HOLE_MAX_DIAMETER_MM,
+        )
+        set((s) => ({
+          serviceHoleTool: { ...s.serviceHoleTool, lastDiameter_mm: clamped },
+        }))
+      },
+      setServiceHoleShape: (shape) =>
+        set((s) => ({ serviceHoleTool: { ...s.serviceHoleTool, shape } })),
+      setServiceHoleSnap: (snap) =>
+        set((s) => ({ serviceHoleTool: { ...s.serviceHoleTool, snapToGrid: snap } })),
 
       loadLibrary: async (json) => {
         set({ isLibraryLoading: true, libraryLoadError: null })
@@ -231,6 +275,7 @@ export const useCFS = create<CFSStore>()(
         unitsDisplay: s.unitsDisplay,
         preferredHeaderType: s.preferredHeaderType,
         activeLibraryId: s.activeLibraryId,
+        serviceHoleTool: s.serviceHoleTool,
       }),
     },
   ),

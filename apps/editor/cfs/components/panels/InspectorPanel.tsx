@@ -5,10 +5,11 @@ import {
   useMembersByRole,
   useWallFramingSelection,
 } from '@pascal-app/cfs'
-import type { CFSOpening } from '@pascal-app/cfs'
+import type { CFSOpening, CFSServiceHole } from '@pascal-app/cfs'
 import { useScene, type AnyNode } from '@pascal-app/core'
 import { useViewer } from '@pascal-app/viewer'
 import { OpeningBody } from './OpeningBody'
+import { ServiceHoleBody } from './ServiceHoleBody'
 import { WallFramingBody } from './WallFramingBody'
 
 const PANEL_CLASSES =
@@ -26,6 +27,7 @@ const PANEL_CLASSES =
 export function InspectorPanel(): React.JSX.Element | null {
   const isCFSMode = useCFS((s) => s.isCFSMode)
   const libraryError = useCFS((s) => s.libraryLoadError)
+  const selectedHoleId = useCFS((s) => s.selectedHoleId)
   const selectedId = useViewer((s) => s.selection.selectedIds[0] ?? null)
   const { wall, framing, members } = useWallFramingSelection(selectedId)
   const membersByRole = useMembersByRole(members)
@@ -36,6 +38,15 @@ export function InspectorPanel(): React.JSX.Element | null {
     if (!node || (node as { type?: string }).type !== 'cfs_opening') return null
     return node as unknown as CFSOpening
   })
+  // §7.4.7 — service-hole selection is driven by `useCFS.selectedHoleId`,
+  // set by `CFSServiceHoleTool` immediately after placement (and by the
+  // member-body hole list when it ships in a future slice).
+  const selectedHole = useScene((s) => {
+    if (!selectedHoleId) return null
+    const node = (s.nodes as unknown as Record<string, AnyNode | undefined>)[selectedHoleId]
+    if (!node || (node as { type?: string }).type !== 'cfs_service_hole') return null
+    return node as unknown as CFSServiceHole
+  })
 
   if (!isCFSMode) return null
 
@@ -43,14 +54,16 @@ export function InspectorPanel(): React.JSX.Element | null {
     <aside className={PANEL_CLASSES} aria-label="CFS inspector">
       <header className="mb-2 flex items-baseline justify-between">
         <h2 className="text-sm font-semibold">CFS inspector</h2>
-        <span className="text-[10px] text-muted-foreground">Slice 3</span>
+        <span className="text-[10px] text-muted-foreground">Slice 6</span>
       </header>
       {libraryError ? (
         <p className="mb-2 rounded border border-red-500/40 bg-red-500/10 p-2 text-[11px] text-red-200">
           {libraryError}
         </p>
       ) : null}
-      {selectedOpening ? (
+      {selectedHole ? (
+        <ServiceHoleBody hole={selectedHole} />
+      ) : selectedOpening ? (
         <OpeningBody opening={selectedOpening} />
       ) : wall && framing ? (
         <WallFramingBody
