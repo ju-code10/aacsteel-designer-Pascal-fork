@@ -36,6 +36,20 @@ export const CFSSectionProperties = z
   .strict()
 export type CFSSectionProperties = z.infer<typeof CFSSectionProperties>
 
+// §1.5 / §5.4 — model of the SSMA mill pre-punch pattern that ships on
+// stock structural studs. The detailer's service-hole spacing rule (R3)
+// must respect both sibling detailer holes AND these factory holes.
+// Tracks have no pre-punches; their CFSSection omits this field entirely.
+export const CFSPrePunchPattern = z
+  .object({
+    firstPosition_mm: z.number().nonnegative(),
+    spacing_mm: z.number().positive(),
+    length_mm: z.number().positive(),
+    width_mm: z.number().positive(),
+  })
+  .strict()
+export type CFSPrePunchPattern = z.infer<typeof CFSPrePunchPattern>
+
 export const CFSMaterial = z
   .object({
     designation: z.string().min(1),

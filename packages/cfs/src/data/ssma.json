@@ -24,7 +24,13 @@
         "density_kgPerM3": 7850,
         "coating": "G60"
       },
-      "linearMass_kgPerM": 0.93
+      "linearMass_kgPerM": 0.93,
+      "prePunchPattern": {
+        "firstPosition_mm": 305,
+        "spacing_mm": 610,
+        "length_mm": 102,
+        "width_mm": 38
+      }
     },
     {
       "id": "ff5a0001-0000-4000-a000-350516200054",
@@ -46,7 +52,13 @@
         "density_kgPerM3": 7850,
         "coating": "G60"
       },
-      "linearMass_kgPerM": 1.55
+      "linearMass_kgPerM": 1.55,
+      "prePunchPattern": {
+        "firstPosition_mm": 305,
+        "spacing_mm": 610,
+        "length_mm": 102,
+        "width_mm": 38
+      }
     },
     {
       "id": "ff5a0001-0000-4000-a000-362516200033",
@@ -68,7 +80,13 @@
         "density_kgPerM3": 7850,
         "coating": "G60"
       },
-      "linearMass_kgPerM": 0.97
+      "linearMass_kgPerM": 0.97,
+      "prePunchPattern": {
+        "firstPosition_mm": 305,
+        "spacing_mm": 610,
+        "length_mm": 102,
+        "width_mm": 38
+      }
     },
     {
       "id": "ff5a0001-0000-4000-a000-362516200054",
@@ -90,7 +108,13 @@
         "density_kgPerM3": 7850,
         "coating": "G60"
       },
-      "linearMass_kgPerM": 1.61
+      "linearMass_kgPerM": 1.61,
+      "prePunchPattern": {
+        "firstPosition_mm": 305,
+        "spacing_mm": 610,
+        "length_mm": 102,
+        "width_mm": 38
+      }
     },
     {
       "id": "ff5a0001-0000-4000-a000-400516200054",
@@ -112,7 +136,13 @@
         "density_kgPerM3": 7850,
         "coating": "G60"
       },
-      "linearMass_kgPerM": 1.71
+      "linearMass_kgPerM": 1.71,
+      "prePunchPattern": {
+        "firstPosition_mm": 305,
+        "spacing_mm": 610,
+        "length_mm": 102,
+        "width_mm": 38
+      }
     },
     {
       "id": "ff5a0001-0000-4000-a000-600516200054",
@@ -134,7 +164,13 @@
         "density_kgPerM3": 7850,
         "coating": "G60"
       },
-      "linearMass_kgPerM": 2.31
+      "linearMass_kgPerM": 2.31,
+      "prePunchPattern": {
+        "firstPosition_mm": 305,
+        "spacing_mm": 610,
+        "length_mm": 102,
+        "width_mm": 38
+      }
     },
     {
       "id": "ff5a0002-0000-4000-a000-350412500033",

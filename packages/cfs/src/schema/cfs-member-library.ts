@@ -1,6 +1,11 @@
 import { z } from 'zod'
 import { CFSMemberLibraryId, CFSSectionId } from './ids'
-import { CFSMaterial, CFSProfileShape, CFSSectionProperties } from './primitives'
+import {
+  CFSMaterial,
+  CFSPrePunchPattern,
+  CFSProfileShape,
+  CFSSectionProperties,
+} from './primitives'
 
 export const CFSStructuralProperties = z
   .object({
@@ -26,6 +31,9 @@ export const CFSSection = z
     material: CFSMaterial,
     linearMass_kgPerM: z.number().positive(),
     structuralProperties: CFSStructuralProperties.optional(),
+    // §3.3 R-03 — optional SSMA mill pre-punch pattern. Stud-style sections
+    // populate it; tracks omit it. Consumed by CFSServiceHoleSystem (§5.4).
+    prePunchPattern: CFSPrePunchPattern.optional(),
   })
   .strict()
 export type CFSSection = z.infer<typeof CFSSection>

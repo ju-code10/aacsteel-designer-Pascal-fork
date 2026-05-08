@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { CFSMember } from '../cfs-member'
+import { CFSMemberLibrary, CFSSection } from '../cfs-member-library'
 import { CFSOpening } from '../cfs-opening'
 import { CFSPanel } from '../cfs-panel'
 import { CFSProject } from '../cfs-project'
@@ -141,6 +142,94 @@ describe('CFS schemas — §3.11 worked-example round-trip', () => {
       },
     })
     expect(hole.compliance.status).toBe('compliant')
+  })
+})
+
+describe('CFSSection — prePunchPattern (Slice 6 / R-03)', () => {
+  const baseStud = {
+    id: ID.studSection,
+    designation: '362S162-54',
+    shape: 'C' as const,
+    properties: {
+      shape: 'C' as const,
+      webDepth_mm: 92.1,
+      flangeWidth_mm: 41.3,
+      lipLength_mm: 12.7,
+      thickness_mm: 1.37,
+      cornerRadius_mm: 2.06,
+    },
+    material: {
+      designation: 'ASTM A1003 ST50H',
+      yieldStrength_MPa: 345,
+      tensileStrength_MPa: 448,
+      modulusOfElasticity_MPa: 203_000,
+      density_kgPerM3: 7850,
+      coating: 'G60',
+    },
+    linearMass_kgPerM: 1.61,
+  }
+
+  it('round-trips a stud section with prePunchPattern', () => {
+    const section = CFSSection.parse({
+      ...baseStud,
+      prePunchPattern: {
+        firstPosition_mm: 305,
+        spacing_mm: 610,
+        length_mm: 102,
+        width_mm: 38,
+      },
+    })
+    expect(section.prePunchPattern).toEqual({
+      firstPosition_mm: 305,
+      spacing_mm: 610,
+      length_mm: 102,
+      width_mm: 38,
+    })
+    // Re-parsing the serialized form yields an identical object.
+    const reparsed = CFSSection.parse(JSON.parse(JSON.stringify(section)))
+    expect(reparsed.prePunchPattern).toEqual(section.prePunchPattern)
+  })
+
+  it('accepts a track section without prePunchPattern (field absent)', () => {
+    const track = CFSSection.parse({
+      ...baseStud,
+      id: ID.trackSection,
+      designation: '362T125-54',
+      shape: 'U' as const,
+      properties: { ...baseStud.properties, shape: 'U' as const, lipLength_mm: 0 },
+    })
+    expect(track.prePunchPattern).toBeUndefined()
+  })
+
+  it('rejects negative spacing', () => {
+    expect(() =>
+      CFSSection.parse({
+        ...baseStud,
+        prePunchPattern: {
+          firstPosition_mm: 305,
+          spacing_mm: -1,
+          length_mm: 102,
+          width_mm: 38,
+        },
+      }),
+    ).toThrow()
+  })
+
+  it('shipped SSMA library populates prePunchPattern on every stud', async () => {
+    // Walks the actual ssma.json shipped with the package.
+    const { ssmaLibraryJson } = await import('../../library/load-ssma')
+    const lib = CFSMemberLibrary.parse(ssmaLibraryJson)
+    const studs = lib.sections.filter((s) => s.shape === 'C')
+    const tracks = lib.sections.filter((s) => s.shape === 'U')
+    expect(studs.length).toBeGreaterThanOrEqual(6)
+    for (const stud of studs) {
+      expect(stud.prePunchPattern).toBeDefined()
+      expect(stud.prePunchPattern!.firstPosition_mm).toBe(305)
+      expect(stud.prePunchPattern!.spacing_mm).toBe(610)
+    }
+    for (const track of tracks) {
+      expect(track.prePunchPattern).toBeUndefined()
+    }
   })
 })
 
