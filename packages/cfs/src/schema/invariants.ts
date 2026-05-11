@@ -152,7 +152,9 @@ export function checkCFSInvariants(ctx: CFSInvariantContext): CFSInvariantViolat
             message: `parentId ${p.parentId} does not reference a CFSWallFraming`,
           })
         }
-        if (p.endAlongWall_mm <= p.startAlongWall_mm) {
+        // §7.3.3 sentinels are transient zero-width markers; they're allowed
+        // to violate end > start until the panelization pass replaces them.
+        if (!p.isPendingSentinel && p.endAlongWall_mm <= p.startAlongWall_mm) {
           violations.push({
             rule: 'panel.endAfterStart',
             nodeId: p.id,
@@ -232,10 +234,13 @@ export function checkCFSInvariants(ctx: CFSInvariantContext): CFSInvariantViolat
     }
   }
 
-  // Panel non-overlap: per framing, no two panels overlap.
+  // Panel non-overlap: per framing, no two real panels overlap. Sentinels
+  // (§7.3.3) are excluded — they are zero-width markers replaced by the
+  // panelization pass before any consumer reads the layout.
   const panelsByFraming = new Map<string, CFSPanel[]>()
   for (const node of Object.values(nodes)) {
     if (node.type !== 'cfs_panel') continue
+    if (node.isPendingSentinel) continue
     const list = panelsByFraming.get(node.parentId) ?? []
     list.push(node)
     panelsByFraming.set(node.parentId, list)

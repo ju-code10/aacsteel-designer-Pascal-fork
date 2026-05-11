@@ -23,6 +23,16 @@ export const SERVICE_HOLE_TOOL_LABEL = 'Service hole'
 export const SERVICE_HOLE_TOOL_TOOLTIP =
   'Place a service hole on a stud or track. Click the wall near the member; the closest CFS member receives the hole.'
 
+export const PANEL_BREAK_TOOL_LABEL = 'Panel break'
+export const PANEL_BREAK_TOOL_TOOLTIP =
+  'Place a manual panel break on the clicked wall. The panelizer respects the break and re-runs.'
+
+export const PANELIZE_ACTION_LABEL = 'Panelize'
+export const PANELIZE_ACTION_TOOLTIP =
+  'Run panelization on every CFS wall in the scene (or the selected one if any).'
+
+export const SETTINGS_TAB_LABEL = 'Settings'
+
 export const SERVICE_HOLE_INSPECTOR_TITLE = 'Service hole'
 export const SERVICE_HOLE_INSPECTOR_POSITION_LABEL = 'Position along member'
 export const SERVICE_HOLE_INSPECTOR_DIAMETER_LABEL = 'Diameter'

@@ -5,10 +5,12 @@ import {
   useMembersByRole,
   useWallFramingSelection,
 } from '@pascal-app/cfs'
-import type { CFSOpening, CFSServiceHole } from '@pascal-app/cfs'
+import type { CFSOpening, CFSPanel, CFSServiceHole } from '@pascal-app/cfs'
 import { useScene, type AnyNode } from '@pascal-app/core'
 import { useViewer } from '@pascal-app/viewer'
+import { GlobalBody } from './GlobalBody'
 import { OpeningBody } from './OpeningBody'
+import { PanelBody } from './PanelBody'
 import { ServiceHoleBody } from './ServiceHoleBody'
 import { WallFramingBody } from './WallFramingBody'
 
@@ -16,18 +18,23 @@ const PANEL_CLASSES =
   'fixed bottom-4 right-4 z-40 w-80 max-h-[60vh] overflow-y-auto rounded-xl border border-border bg-background/95 p-3 shadow-2xl backdrop-blur-md text-foreground'
 
 /**
- * Slice 3 inspector — read-only floating panel that surfaces the framing
- * derived for the selected wall (or framing). Mounted as a DOM sibling of
- * the editor; future slices will move it into Pascal's sidebar API.
+ * §7.4 — CFS inspector router. Routes to the body component for whatever
+ * is currently selected, in priority order:
  *
- * Selection bridge §7.4.1: reads `useViewer.selection.selectedIds[0]` and
- * resolves either a Pascal `wall` id or a `cfs_wall_framing` id to the same
- * subject — the framing for that wall.
+ *   1. Settings tab (user explicitly clicked the settings affordance)
+ *   2. Service hole (useCFS.selectedHoleId, set by ServiceHoleTool)
+ *   3. Panel (useCFS.selectedPanelId, set by PanelBreakTool / panel list)
+ *   4. Opening (selected node is a cfs_opening)
+ *   5. Wall framing (selected node is a wall / framing)
+ *
+ * Slice 7 adds (1)–(3); (4)–(5) shipped in earlier slices.
  */
 export function InspectorPanel(): React.JSX.Element | null {
   const isCFSMode = useCFS((s) => s.isCFSMode)
+  const inspectorTab = useCFS((s) => s.inspectorTab)
   const libraryError = useCFS((s) => s.libraryLoadError)
   const selectedHoleId = useCFS((s) => s.selectedHoleId)
+  const selectedPanelId = useCFS((s) => s.selectedPanelId)
   const selectedId = useViewer((s) => s.selection.selectedIds[0] ?? null)
   const { wall, framing, members } = useWallFramingSelection(selectedId)
   const membersByRole = useMembersByRole(members)
@@ -38,14 +45,19 @@ export function InspectorPanel(): React.JSX.Element | null {
     if (!node || (node as { type?: string }).type !== 'cfs_opening') return null
     return node as unknown as CFSOpening
   })
-  // §7.4.7 — service-hole selection is driven by `useCFS.selectedHoleId`,
-  // set by `CFSServiceHoleTool` immediately after placement (and by the
-  // member-body hole list when it ships in a future slice).
   const selectedHole = useScene((s) => {
     if (!selectedHoleId) return null
     const node = (s.nodes as unknown as Record<string, AnyNode | undefined>)[selectedHoleId]
     if (!node || (node as { type?: string }).type !== 'cfs_service_hole') return null
     return node as unknown as CFSServiceHole
+  })
+  const selectedPanel = useScene((s) => {
+    if (!selectedPanelId) return null
+    const node = (s.nodes as unknown as Record<string, AnyNode | undefined>)[selectedPanelId]
+    if (!node || (node as { type?: string }).type !== 'cfs_panel') return null
+    const p = node as unknown as CFSPanel
+    if (p.isPendingSentinel) return null // sentinels are transient
+    return p
   })
 
   if (!isCFSMode) return null
@@ -54,15 +66,19 @@ export function InspectorPanel(): React.JSX.Element | null {
     <aside className={PANEL_CLASSES} aria-label="CFS inspector">
       <header className="mb-2 flex items-baseline justify-between">
         <h2 className="text-sm font-semibold">CFS inspector</h2>
-        <span className="text-[10px] text-muted-foreground">Slice 6</span>
+        <span className="text-[10px] text-muted-foreground">Slice 7</span>
       </header>
       {libraryError ? (
         <p className="mb-2 rounded border border-red-500/40 bg-red-500/10 p-2 text-[11px] text-red-200">
           {libraryError}
         </p>
       ) : null}
-      {selectedHole ? (
+      {inspectorTab === 'settings' ? (
+        <GlobalBody />
+      ) : selectedHole ? (
         <ServiceHoleBody hole={selectedHole} />
+      ) : selectedPanel ? (
+        <PanelBody panel={selectedPanel} />
       ) : selectedOpening ? (
         <OpeningBody opening={selectedOpening} />
       ) : wall && framing ? (

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCFS } from '@pascal-app/cfs'
+import { useScene } from '@pascal-app/core'
 import { useEffect } from 'react'
 
 /**
@@ -9,19 +10,22 @@ import { useEffect } from 'react'
  * Pascal's own bindings work unchanged. When CFS mode is on, the shortcuts
  * below win.
  *
- * Single-key shortcuts (`T`, `W`, `H`, `Esc`) only fire when no input
- * element has focus, so typing into a project-name field doesn't activate
- * a tool.
+ * Single-key shortcuts (`T`, `W`, `H`, `B`, `P`, `Esc`) only fire when no
+ * input element has focus, so typing into a project-name field doesn't
+ * activate a tool.
  *
- * Slice 6 adds `H` for the service-hole tool; `T` and `W` for door/window
- * tools were not yet wired in Slice 4 but get hooked here too so the slice
- * also delivers the tool keyboard surface as a polish bonus.
+ * Slice 6 adds `H` for the service-hole tool. Slice 7 adds `B` for the
+ * panel-break tool and `P` for the Panelize one-shot action.
  */
 
-const TOOL_SHORTCUTS: Record<string, 'cfs-door' | 'cfs-window' | 'cfs-service-hole'> = {
+const TOOL_SHORTCUTS: Record<
+  string,
+  'cfs-door' | 'cfs-window' | 'cfs-service-hole' | 'cfs-panel-break'
+> = {
   KeyT: 'cfs-door',
   KeyW: 'cfs-window',
   KeyH: 'cfs-service-hole',
+  KeyB: 'cfs-panel-break',
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -41,6 +45,18 @@ export function useCFSShortcuts(isActive: boolean): void {
       if (e.metaKey || e.ctrlKey || e.altKey) return // skip modifier combos
       if (e.code === 'Escape') {
         useCFS.getState().setActiveTool(null)
+        return
+      }
+      // `P` — Panelize all framings (no modal tool; one-shot action).
+      if (e.code === 'KeyP') {
+        e.preventDefault()
+        const scene = useScene.getState()
+        const req = useCFS.getState().requestPanelize
+        for (const n of Object.values(scene.nodes)) {
+          if ((n as { type?: string }).type === 'cfs_wall_framing') {
+            req((n as { id: string }).id)
+          }
+        }
         return
       }
       const tool = TOOL_SHORTCUTS[e.code]

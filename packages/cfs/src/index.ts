@@ -47,6 +47,33 @@ export { CFSOpeningWatcher } from './systems/opening-watcher'
 export { CFSServiceHoleSystem } from './systems/service-hole-system'
 export { runFramingPass } from './systems/framing-pass'
 export { runServiceHolePass, verdictsEquivalent } from './systems/service-hole-pass'
+export { runPanelizationPass } from './systems/panelization-pass'
+export {
+  planPanelization,
+  PanelizationError,
+  type PanelDraft,
+  type PanelizeInput,
+  type PanelizeResult,
+  type PanelizationWarning,
+} from './systems/panelization-compute'
+export {
+  computeForbiddenZones,
+  isInForbiddenZone,
+  latestNonForbiddenPositionBefore,
+  mergeIntervals,
+  memberMidAlongWall_mm,
+  worldPointToWallLocalX_mm,
+  kingFlangeBuffer_mm,
+  type Interval,
+} from './lib/panelization-zones'
+export { isRealPanel, panelWidth_mm } from './schema/cfs-panel'
+export {
+  localToWorld,
+  wallLengthFromPascalWall,
+  wallHeightFromPascalWall,
+  type PascalWallLike,
+  type WallLocalPoint,
+} from './lib/wall-frame'
 export {
   processDirtyWalls,
   sweepWallsForFraming,

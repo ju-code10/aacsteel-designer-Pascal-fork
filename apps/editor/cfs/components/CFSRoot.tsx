@@ -13,8 +13,11 @@ import { useEffect } from 'react'
 import { useCFSShortcuts } from '../lib/use-cfs-shortcuts'
 import { applyWallVisibility, resetWallVisibilityCache } from '../lib/wall-visibility'
 import { CFSGeometrySystem } from '../systems/CFSGeometrySystem'
+import { CFSPanelizationSystem } from '../systems/CFSPanelizationSystem'
+import { CFSPanelOverlay } from '../systems/CFSPanelOverlay'
 import { InspectorPanel } from './panels/InspectorPanel'
 import { CFSDoorTool } from './tools/CFSDoorTool'
+import { CFSPanelBreakTool } from './tools/CFSPanelBreakTool'
 import { CFSServiceHoleTool } from './tools/CFSServiceHoleTool'
 import { CFSWindowTool } from './tools/CFSWindowTool'
 
@@ -72,9 +75,12 @@ export function CFSRoot(): React.JSX.Element {
       <CFSFramingSystem />
       <CFSGeometrySystem />
       <CFSServiceHoleSystem />
+      <CFSPanelizationSystem />
+      <CFSPanelOverlay />
       <CFSDoorTool />
       <CFSWindowTool />
       <CFSServiceHoleTool />
+      <CFSPanelBreakTool />
       <InspectorPanel />
     </>
   )

@@ -20,7 +20,12 @@ import { tryParseLibrary } from '../library/load-ssma'
 export type CFSInspectorTab = 'wall' | 'opening' | 'panel' | 'holes' | 'settings'
 export type CFSUnitsDisplay = 'metric' | 'imperial'
 export type CFSMemberLibraryMap = Record<CFSMemberLibraryId, CFSMemberLibrary>
-export type CFSActiveTool = 'cfs-door' | 'cfs-window' | 'cfs-service-hole' | null
+export type CFSActiveTool =
+  | 'cfs-door'
+  | 'cfs-window'
+  | 'cfs-service-hole'
+  | 'cfs-panel-break'
+  | null
 export type CFSServiceHoleShape = 'round' | 'oblong'
 
 /** §7.3.2 — settings shared by `ServiceHoleTool` placement and `ServiceHoleGhost` hover preview. */
@@ -60,6 +65,21 @@ export interface CFSStoreState {
   // transient lifecycle flags
   isLibraryLoading: boolean
   libraryLoadError: string | null
+
+  /**
+   * §5.5 — framings the user has asked the panelization system to (re)process.
+   * The system consumes and clears entries on its useFrame tick. Lives in
+   * useCFS (editor-local) rather than useScene so it does not get undo
+   * history; the panelization action itself is undoable through Zundo.
+   */
+  pendingPanelizeFramingIds: Set<string>
+
+  /**
+   * Per-framing warning surfaced by the panelization pass — e.g., manual
+   * break violates max-width. Keyed by framingId. Cleared on next successful
+   * pass.
+   */
+  panelizationWarnings: Record<string, string[]>
 }
 
 export interface CFSStoreActions {
@@ -80,6 +100,13 @@ export interface CFSStoreActions {
 
   setUnitsDisplay: (units: CFSUnitsDisplay) => void
   setPreferredHeaderType: (header: CFSHeaderType) => void
+
+  /** Enqueue a framing for the next panelization tick. */
+  requestPanelize: (framingId: string) => void
+  /** Pop a framing off the queue. Called by CFSPanelizationSystem. */
+  consumePendingPanelize: (framingId: string) => void
+  /** Replace the warning list for a framing. Cleared with `[]`. */
+  setPanelizationWarnings: (framingId: string, warnings: string[]) => void
 }
 
 export type CFSStore = CFSStoreState & CFSStoreActions
@@ -103,6 +130,8 @@ const initialState: CFSStoreState = {
   preferredHeaderType: 'box',
   isLibraryLoading: false,
   libraryLoadError: null,
+  pendingPanelizeFramingIds: new Set<string>(),
+  panelizationWarnings: {},
 }
 
 /** §7.3.2 — clamps for the diameter stepper / scroll-wheel adjustment. */
@@ -268,6 +297,46 @@ export const useCFS = create<CFSStore>()(
 
       setUnitsDisplay: (units) => set({ unitsDisplay: units }),
       setPreferredHeaderType: (header) => set({ preferredHeaderType: header }),
+
+      requestPanelize: (framingId) => {
+        set((s) => {
+          if (s.pendingPanelizeFramingIds.has(framingId)) return s
+          const next = new Set(s.pendingPanelizeFramingIds)
+          next.add(framingId)
+          return { pendingPanelizeFramingIds: next }
+        })
+        // Also dirty the framing so the system picks it up on the next tick.
+        const scene = useScene.getState()
+        scene.markDirty(framingId as unknown as AnyNodeId)
+      },
+
+      consumePendingPanelize: (framingId) => {
+        set((s) => {
+          if (!s.pendingPanelizeFramingIds.has(framingId)) return s
+          const next = new Set(s.pendingPanelizeFramingIds)
+          next.delete(framingId)
+          return { pendingPanelizeFramingIds: next }
+        })
+      },
+
+      setPanelizationWarnings: (framingId, warnings) => {
+        set((s) => {
+          const existing = s.panelizationWarnings[framingId] ?? []
+          if (
+            existing.length === warnings.length &&
+            existing.every((w, i) => w === warnings[i])
+          ) {
+            return s
+          }
+          const next = { ...s.panelizationWarnings }
+          if (warnings.length === 0) {
+            delete next[framingId]
+          } else {
+            next[framingId] = warnings
+          }
+          return { panelizationWarnings: next }
+        })
+      },
     }),
     {
       name: 'aacsteel.cfs',
