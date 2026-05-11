@@ -139,4 +139,31 @@ describe('groupFieldStudsByInstance', () => {
     const { groups } = groupFieldStudsByInstance([a, b])
     expect(groups.size).toBe(2)
   })
+
+  it('Slice 6 — studs with service holes fall out of the instanced group', () => {
+    const studs = [studAt(0), studAt(0.6), studAt(1.2)]
+    const studWithHoleId = studs[1]!.id
+    const { groups, nonInstanced } = groupFieldStudsByInstance(
+      studs,
+      (id) => id === studWithHoleId,
+    )
+    const totalInGroups = Array.from(groups.values()).reduce(
+      (s, b) => s + b.length,
+      0,
+    )
+    expect(totalInGroups).toBe(2)
+    expect(nonInstanced).toHaveLength(1)
+    expect(nonInstanced[0]!.id).toBe(studWithHoleId)
+  })
+
+  it('Slice 6 — without a predicate, behaviour is unchanged from Slice 5', () => {
+    const studs = [studAt(0), studAt(0.6), studAt(1.2)]
+    const { groups, nonInstanced } = groupFieldStudsByInstance(studs)
+    const totalInGroups = Array.from(groups.values()).reduce(
+      (s, b) => s + b.length,
+      0,
+    )
+    expect(totalInGroups).toBe(3)
+    expect(nonInstanced).toHaveLength(0)
+  })
 })

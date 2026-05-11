@@ -133,8 +133,18 @@ export function buildInstancedStudGroup(
  * Groups members by `(sectionId, orientation_deg)`. Only members whose
  * `role === 'stud'` (the v1 instanced role per §5.3 line 541) are included.
  * Other roles are returned in `nonInstanced`.
+ *
+ * Slice 6 — `hasHoles` predicate: a field stud with at least one service
+ * hole is pushed into `nonInstanced` so its mesh is rebuilt individually
+ * by `buildCfsMesh` (which runs CSG). InstancedMesh shares one geometry
+ * across every instance, so per-instance CSG cuts are impossible there.
+ * Studs without holes stay in the instanced fast path. Pass `undefined`
+ * (or omit) to keep the Slice-5 behaviour.
  */
-export function groupFieldStudsByInstance(members: readonly CFSMember[]): {
+export function groupFieldStudsByInstance(
+  members: readonly CFSMember[],
+  hasHoles?: (memberId: CFSMemberId) => boolean,
+): {
   groups: Map<string, CFSMember[]>
   nonInstanced: CFSMember[]
 } {
@@ -142,6 +152,10 @@ export function groupFieldStudsByInstance(members: readonly CFSMember[]): {
   const nonInstanced: CFSMember[] = []
   for (const m of members) {
     if (m.role !== 'stud') {
+      nonInstanced.push(m)
+      continue
+    }
+    if (hasHoles && hasHoles(m.id)) {
       nonInstanced.push(m)
       continue
     }

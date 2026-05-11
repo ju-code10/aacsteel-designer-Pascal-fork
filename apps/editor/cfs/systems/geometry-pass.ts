@@ -192,7 +192,14 @@ export function runGeometryPass(ctx: GeometryPassContext): void {
 
   for (const [framingId, members] of membersByFraming) {
     desiredFramings.add(framingId)
-    const { groups, nonInstanced } = groupFieldStudsByInstance(members)
+    // Slice 6 — exclude any field stud carrying a service hole from the
+    // instanced fast path. The InstancedMesh shares one geometry across
+    // instances, so the CSG hole-cut from build-cfs-mesh can't ride it;
+    // hole-bearing studs need to be individual Mesh instances.
+    const { groups, nonInstanced } = groupFieldStudsByInstance(
+      members,
+      (id) => (holesByParent.get(id)?.length ?? 0) > 0,
+    )
 
     // ── Per-framing field-stud InstancedMesh ─────────────────────────
     if (groups.size === 0) {
