@@ -107,6 +107,60 @@ export {
   checkR4Stiffener,
 } from './lib/service-hole-validator'
 export {
+  exportBOM,
+  exportCutList,
+  exportDXFs,
+  checkPreflight,
+  preflight,
+  previewPreflight,
+  ExporterError,
+  DXF_LAYERS,
+  HEADER_COMPONENTS,
+  headerRowCount,
+  roleDisplayLabel,
+  type BOMResult,
+  type CutListResult,
+  type DXFResult,
+  type PreflightOptions,
+  type HeaderComponentSpec,
+  type HeaderComponentRole,
+  type HeaderSectionRef,
+} from './exporters'
+export { slugify } from './lib/slugify'
+export { triggerDownload } from './lib/download'
+export { writeCSV, writeCSVWithBOM } from './lib/csv'
+export {
+  mmToIntegerMm,
+  mmToInches4dp,
+  mmToFeetInchSixteenths,
+  lengthForUnits,
+  unitsSuffix,
+  kgToLb,
+  round2,
+  round4,
+} from './lib/length-format'
+export {
+  planShippingMarks,
+  roleCode,
+} from './lib/shipping-marks'
+export { applyShippingMarks } from './lib/shipping-marks-apply'
+export {
+  ancestorOfType,
+  buildingOf,
+  levelOf,
+  membersInPanel,
+  membersInFraming,
+  shortId,
+  sortedMembersScene,
+  sortedPanelsScene,
+  sortedWalls,
+  type SceneLike,
+} from './lib/scene-walk'
+export {
+  resolveHeaderType,
+  findParentOpening,
+} from './lib/header-type-resolver'
+export {
   AISI_R1,
   AISI_R2,
   AISI_R3,

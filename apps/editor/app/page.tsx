@@ -7,6 +7,8 @@ import {
   ViewerToolbarRight,
 } from '@pascal-app/editor'
 import { CFSRoot } from '@/cfs/components/CFSRoot'
+import { ExportStatusBanner } from '@/cfs/components/ExportStatusBanner'
+import { ExportMenu } from '@/cfs/components/toolbar/ExportMenu'
 import { ModeToggle } from '@/cfs/components/toolbar/ModeToggle'
 import { OpeningToolbar } from '@/cfs/components/toolbar/OpeningToolbar'
 
@@ -22,6 +24,7 @@ export default function Home() {
   return (
     <div className="h-screen w-screen">
       <CFSRoot />
+      <ExportStatusBanner />
       <Editor
         layoutVersion="v2"
         projectId="local-editor"
@@ -32,6 +35,7 @@ export default function Home() {
             <ViewerToolbarRight />
             <OpeningToolbar />
             <ModeToggle />
+            <ExportMenu />
           </>
         }
       />

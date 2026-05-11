@@ -27,6 +27,9 @@
   },
   "dependencies": {
     "@pascal-app/core": "*",
+    "@tarikjabiri/dxf": "^2.8.0",
+    "exceljs": "^4.4.0",
+    "fflate": "^0.8.2",
     "zod": "^4.3.6",
     "zustand": "^5"
   },
