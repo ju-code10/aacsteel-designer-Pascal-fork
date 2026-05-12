@@ -1,16 +1,17 @@
 // §6.7 — cross-exporter invariants.
 //
-// Properties that must hold across re-runs and across the three Slice-8
-// exporters. The PDF and JSON exporters ship in Slice 9; tests touching
-// those pieces are marked `it.skip` here and unskipped then.
+// Properties that must hold across re-runs and across every exporter.
 
 import { describe, expect, it } from 'bun:test'
 import { buildCanonicalWall } from '../__fixtures__/canonical-wall'
 import { exportBOM } from '../bom'
 import { exportCutList } from '../cut-list'
 import { exportDXFs } from '../dxf'
+import { exportJSON, importJSON } from '../json'
 import { cfsMemberLength_mm } from '../../schema/cfs-member'
 import type { CFSMember } from '../../schema/cfs-member'
+import type { CFSProject } from '../../schema/cfs-project'
+import type { SceneLike } from '../../lib/scene-walk'
 
 function parseCsv(csv: string): string[][] {
   const body = csv.replace(/^﻿/, '').replace(/\r\n$/, '')
@@ -117,9 +118,44 @@ describe('cross-exporter invariants — §6.7', () => {
     }
   })
 
-  it.skip('#5 Round-trip stability — requires JSON exporter (Slice 9)', () => {
-    // Export JSON, re-import, re-export every other format; assert byte
-    // equality (timestamps excluded). Picked up in Slice 9.
+  it('#5 Round-trip stability: JSON export → import → re-export is byte-identical', async () => {
+    const FIXED = new Date('2026-05-12T12:00:00.000Z')
+    const { scene, project } = buildCanonicalWall()
+
+    const first = exportJSON(scene, project, { exportedAt: FIXED })
+
+    // Re-import into a mock store, then re-export.
+    const nodes: Record<string, unknown> = {}
+    const sceneStore = {
+      getState() {
+        return {
+          nodes,
+          createNode(node: unknown) {
+            const id = (node as { id?: string }).id
+            if (typeof id === 'string') nodes[id] = node
+          },
+        }
+      },
+    }
+    const cfsStore = {
+      getState() {
+        return {
+          memberLibraries: {
+            [project.activeLibraryId as unknown as string]: { sections: [] },
+          },
+          setCFSMode: () => {},
+          setActiveLibrary: () => {},
+        }
+      },
+    }
+    importJSON(JSON.parse(first.fileText), sceneStore, cfsStore)
+    const rtProject = Object.values(nodes).find(
+      (n) => (n as { type?: string }).type === 'cfs_project',
+    ) as CFSProject
+    const wrappedScene: SceneLike = { nodes }
+    const second = exportJSON(wrappedScene, rtProject, { exportedAt: FIXED })
+
+    expect(second.fileText).toBe(first.fileText)
   })
 
   it('#6 Built-up expansion consistency: box header → 4 BOM rows, 1 cut-list row, 1 DXF outline', async () => {

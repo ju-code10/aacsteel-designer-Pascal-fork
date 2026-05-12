@@ -23,6 +23,14 @@ import { membersInPanel, sortedPanelsScene } from '../lib/scene-walk'
 import { lengthForUnits, round2 } from '../lib/length-format'
 import { resolveHeaderType } from '../lib/header-type-resolver'
 import { planShippingMarks } from '../lib/shipping-marks'
+import { dxfFastenerScheduleLines } from '../lib/fastener-defaults'
+import {
+  makePanelTransform,
+  memberBoundingBox_mm,
+  memberCenter_mm,
+  serviceHoleProjection_mm,
+  type PanelTransform,
+} from '../lib/panel-projection'
 import { preflight } from './preflight'
 
 // ── Layer table ─────────────────────────────────────────────────────────────
@@ -138,37 +146,8 @@ function buildPanelDXF(
   return writer.stringify()
 }
 
-interface PanelTransform {
-  /** Translate world (along-wall, vertical) → panel-local (x, y). */
-  toLocal_mm: (x_along_wall_mm: number, y_mm: number) => { x: number; y: number }
-  /** Convert a length in mm to the project's display unit. */
-  display: (mm: number) => number
-  panelWidth_mm: number
-  panelHeight_mm: number
-}
-
-function makePanelTransform(panel: CFSPanel): PanelTransform {
-  const startX = panel.startAlongWall_mm
-  return {
-    toLocal_mm: (x_along_wall_mm, y_mm) => ({ x: x_along_wall_mm - startX, y: y_mm }),
-    display: (mm) => mm, // populated per-call from settings inside drawers
-    panelWidth_mm: panel.endAlongWall_mm - panel.startAlongWall_mm,
-    panelHeight_mm: 2700, // canonical wall height; filled in from scene in v2
-  }
-}
-
 function inUnits(mm: number, settings: CFSProjectSettings): number {
   return lengthForUnits(mm, settings.units)
-}
-
-// Member start.x_mm is "along wall" — same coord space as panel.startAlongWall_mm.
-function memberAlongWall(m: CFSMember): { x0: number; x1: number; y0: number; y1: number } {
-  return {
-    x0: Math.min(m.start.x_mm, m.end.x_mm),
-    x1: Math.max(m.start.x_mm, m.end.x_mm),
-    y0: Math.min(m.start.y_mm, m.end.y_mm),
-    y1: Math.max(m.start.y_mm, m.end.y_mm),
-  }
 }
 
 function drawMembers(
@@ -185,34 +164,13 @@ function drawMembers(
     const layer = ROLE_TO_LAYER[m.role]
     writer.setCurrentLayerName(layer)
 
-    const { x0, x1, y0, y1 } = memberAlongWall(m)
-    const length_along = x1 - x0
-    const length_vertical = y1 - y0
-    const isVertical = length_vertical > length_along
-    // Rectangle: thin dimension is the flange (vertical members) or the web (horizontal).
-    const thick =
-      isVertical ? section.properties.flangeWidth_mm : section.properties.webDepth_mm
-    const halfThick = thick / 2
-
-    // Compute the four corners in panel-local mm, then convert to display units.
-    let corners_mm: { x: number; y: number }[]
-    if (isVertical) {
-      const cx = (x0 + x1) / 2
-      corners_mm = [
-        t.toLocal_mm(cx - halfThick, y0),
-        t.toLocal_mm(cx + halfThick, y0),
-        t.toLocal_mm(cx + halfThick, y1),
-        t.toLocal_mm(cx - halfThick, y1),
-      ]
-    } else {
-      const cy = (y0 + y1) / 2
-      corners_mm = [
-        t.toLocal_mm(x0, cy - halfThick),
-        t.toLocal_mm(x1, cy - halfThick),
-        t.toLocal_mm(x1, cy + halfThick),
-        t.toLocal_mm(x0, cy + halfThick),
-      ]
-    }
+    const bb = memberBoundingBox_mm(m, section, t)
+    const corners_mm: { x: number; y: number }[] = [
+      { x: bb.x, y: bb.y },
+      { x: bb.x + bb.width, y: bb.y },
+      { x: bb.x + bb.width, y: bb.y + bb.height },
+      { x: bb.x, y: bb.y + bb.height },
+    ]
     const vertices: LWPolylineVertex[] = corners_mm.map((c) => ({
       point: { x: inUnits(c.x, settings), y: inUnits(c.y, settings) },
     }))
@@ -221,8 +179,7 @@ function drawMembers(
       flags: 1, // closed
     })
 
-    // Label at midpoint.
-    const mid_mm = t.toLocal_mm((x0 + x1) / 2, (y0 + y1) / 2)
+    const mid_mm = memberCenter_mm(m, t)
     const mark = marks.get(m.id) ?? m.shippingMark ?? ''
     if (mark) {
       writer.setCurrentLayerName('LABELS')
@@ -232,7 +189,7 @@ function drawMembers(
         mark,
         {
           layerName: 'LABELS',
-          rotation: isVertical ? 90 : 0,
+          rotation: bb.isVertical ? 90 : 0,
         },
       )
     }
@@ -249,18 +206,13 @@ function drawHoles(
   writer.setCurrentLayerName('HOLES')
   for (const m of members) {
     if (m.serviceHoleIds.length === 0) continue
-    const { x0, x1, y0, y1 } = memberAlongWall(m)
-    const isVertical = y1 - y0 > x1 - x0
     for (const id of m.serviceHoleIds) {
       const hole = scene.nodes[id as unknown as string] as CFSServiceHole | undefined
       if (!hole) continue
-      const pos = hole.positionAlongMember_mm
-      const center_mm = isVertical
-        ? t.toLocal_mm((x0 + x1) / 2, y0 + pos)
-        : t.toLocal_mm(x0 + pos, (y0 + y1) / 2)
+      const proj = serviceHoleProjection_mm(hole, m, t)
       writer.addCircle(
-        point3d(inUnits(center_mm.x, settings), inUnits(center_mm.y, settings), 0),
-        inUnits(hole.diameter_mm / 2, settings),
+        point3d(inUnits(proj.x, settings), inUnits(proj.y, settings), 0),
+        inUnits(proj.radius, settings),
         { layerName: 'HOLES' },
       )
     }
@@ -284,15 +236,9 @@ function drawDimensions(
     point3d(panelW, offsetY, 0),
     { layerName: 'DIMENSIONS', offset: 0 },
   )
-
-  // For each vertical member, mark its x-position on the chain.
-  for (const m of members) {
-    const { x0, x1, y0, y1 } = memberAlongWall(m)
-    const isVertical = y1 - y0 > x1 - x0
-    if (!isVertical) continue
-    const local = t.toLocal_mm((x0 + x1) / 2, 0)
-    void local
-  }
+  // Per-vertical-member tick marks on the chain: deferred to v2 along
+  // with the §6.3 review of DIMENSION entity rendering in CAD viewers.
+  void members
 
   // Vertical chain: panel height on the left side.
   const panelH = inUnits(t.panelHeight_mm, settings)
@@ -404,13 +350,7 @@ function drawFastenerSchedule(
   const x0 = inUnits(0, settings)
   const y0 = inUnits(-BOTTOM_STRIP_HEIGHT_MM, settings)
   const textH = inUnits(TITLE_TEXT_HEIGHT_MM * 0.8, settings)
-  const lines = [
-    'FASTENER SCHEDULE (TYPICAL)',
-    '----------------------------',
-    'Stud-to-track:   #10 self-drilling, 2 per joint',
-    'Header-to-king:  #10 self-drilling, 4 per joint',
-    'Sheathing:       per project specifications',
-  ]
+  const lines = dxfFastenerScheduleLines()
   const rowH = textH * 1.4
   lines.forEach((line, i) => {
     writer.addText(

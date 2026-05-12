@@ -2,6 +2,7 @@
 
 import { cfsMemberLength_mm } from '@pascal-app/cfs'
 import type { CFSMember, CFSWallFraming } from '@pascal-app/cfs'
+import { EMPTY_OPENINGS_HINT, EMPTY_PANELS_HINT } from '../../lib/strings'
 
 const ROLE_COLOR: Record<CFSMember['role'], string> = {
   'top-track': '#9ca3af',
@@ -69,6 +70,20 @@ export function WallFramingBody({
   const memberCount = framing.cachedMemberCount ?? members.length
   const totalWeight_kg = framing.cachedTotalWeight_kg ?? null
 
+  // §7.8.3 / §7.8.4 empty-state hints. Inferred from member data so the
+  // hint surfaces even before we add full openings/panels sub-sections
+  // (those follow in v2 per the §7.4.3 backlog).
+  const hasOpenings = members.some(
+    (m) =>
+      m.role === 'king-stud' ||
+      m.role === 'jamb-stud' ||
+      m.role === 'header' ||
+      m.role === 'sill',
+  )
+  const hasAnyPanel = members.some((m) => m.panelId != null)
+  const showOpeningsHint = memberCount > 0 && !hasOpenings
+  const showPanelsHint = memberCount > 0 && !hasAnyPanel
+
   return (
     <div className="flex flex-col gap-3 text-xs">
       <section>
@@ -96,6 +111,21 @@ export function WallFramingBody({
           <dd>{formatKg(totalWeight_kg)}</dd>
         </dl>
       </section>
+
+      {showOpeningsHint || showPanelsHint ? (
+        <section className="flex flex-col gap-2">
+          {showOpeningsHint ? (
+            <p className="rounded border border-dashed border-border bg-muted/30 px-2 py-1.5 text-[11px] text-muted-foreground">
+              {EMPTY_OPENINGS_HINT}
+            </p>
+          ) : null}
+          {showPanelsHint ? (
+            <p className="rounded border border-dashed border-border bg-muted/30 px-2 py-1.5 text-[11px] text-muted-foreground">
+              {EMPTY_PANELS_HINT}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <section>
         <h3 className="mb-1 font-semibold text-muted-foreground uppercase tracking-wide">

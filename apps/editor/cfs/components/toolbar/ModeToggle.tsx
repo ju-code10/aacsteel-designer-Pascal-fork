@@ -2,6 +2,7 @@
 
 import { useCFS } from '@pascal-app/cfs'
 import { twMerge } from 'tailwind-merge'
+import { shortcutHint } from '../../lib/shortcuts'
 import {
   MODE_TOGGLE_LABEL_OFF,
   MODE_TOGGLE_LABEL_ON,
@@ -29,7 +30,7 @@ export function ModeToggle() {
         aria-pressed={!isCFSMode}
         className={twMerge(SEGMENT_BASE, isCFSMode ? SEGMENT_INACTIVE : SEGMENT_ACTIVE)}
         onClick={() => setCFSMode(false)}
-        title={isCFSMode ? MODE_TOGGLE_TOOLTIP_ON : undefined}
+        title={isCFSMode ? `${MODE_TOGGLE_TOOLTIP_ON} ${shortcutHint('cfs:mode:toggle')}` : undefined}
         type="button"
       >
         {MODE_TOGGLE_LABEL_OFF}
@@ -38,7 +39,7 @@ export function ModeToggle() {
         aria-pressed={isCFSMode}
         className={twMerge(SEGMENT_BASE, isCFSMode ? SEGMENT_ACTIVE : SEGMENT_INACTIVE)}
         onClick={() => setCFSMode(true)}
-        title={isCFSMode ? undefined : MODE_TOGGLE_TOOLTIP_OFF}
+        title={isCFSMode ? undefined : `${MODE_TOGGLE_TOOLTIP_OFF} ${shortcutHint('cfs:mode:toggle')}`}
         type="button"
       >
         {MODE_TOGGLE_LABEL_ON}

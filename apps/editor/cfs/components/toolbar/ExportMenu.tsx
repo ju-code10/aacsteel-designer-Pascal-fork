@@ -14,7 +14,7 @@ import {
   type SceneLike,
 } from '@pascal-app/cfs'
 import { useScene } from '@pascal-app/core'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import {
   EXPORT_ITEM_BOM,
   EXPORT_ITEM_CUT_LIST,
@@ -22,10 +22,10 @@ import {
   EXPORT_ITEM_IMPORT,
   EXPORT_ITEM_JSON,
   EXPORT_ITEM_PDF,
-  EXPORT_ITEM_SLICE9_TOOLTIP,
   EXPORT_MENU_LABEL,
   EXPORT_MENU_TOOLTIP,
 } from '../../lib/strings'
+import { shortcutHint } from '../../lib/shortcuts'
 import { useExport } from '../../lib/use-export'
 
 const BUTTON_BASE = 'rounded-md px-3 py-1.5 text-xs font-medium border transition-colors'
@@ -34,9 +34,16 @@ const BUTTON_ACTIVE = 'border-primary bg-primary text-primary-foreground'
 
 export function ExportMenu(): React.JSX.Element | null {
   const isCFSMode = useCFS((s) => s.isCFSMode)
-  const { exportBOM, exportCutList, exportDXFs, exportShopDrawings, exportJSON, importJSON } =
-    useExport()
-  const [open, setOpen] = useState(false)
+  const {
+    exportBOM,
+    exportCutList,
+    exportDXFs,
+    exportShopDrawings,
+    exportJSON,
+    importJSON,
+    menuOpen: open,
+    setMenuOpen: setOpen,
+  } = useExport()
   const rootRef = useRef<HTMLDivElement | null>(null)
 
   // Re-derive the disabled state of every menu item on every open. Cheap —
@@ -52,6 +59,8 @@ export function ExportMenu(): React.JSX.Element | null {
   const cutListDisabled =
     previewPreflight(scene, library, project, { requirePanels: false })
   const dxfDisabled = bomDisabled
+  const pdfDisabled = bomDisabled
+  const jsonDisabled = cutListDisabled // same: needs library + project, panels optional
 
   // Click-outside close.
   useEffect(() => {
@@ -76,8 +85,8 @@ export function ExportMenu(): React.JSX.Element | null {
       <button
         type="button"
         className={`${BUTTON_BASE} ${open ? BUTTON_ACTIVE : BUTTON_INACTIVE}`}
-        onClick={() => setOpen((v) => !v)}
-        title={EXPORT_MENU_TOOLTIP}
+        onClick={() => setOpen(!open)}
+        title={`${EXPORT_MENU_TOOLTIP} ${shortcutHint('cfs:export:menu')}`}
         aria-haspopup="menu"
         aria-expanded={open}
       >
@@ -108,21 +117,19 @@ export function ExportMenu(): React.JSX.Element | null {
           />
           <MenuItem
             label={EXPORT_ITEM_PDF}
-            tooltip={EXPORT_ITEM_SLICE9_TOOLTIP}
-            disabled
+            tooltip={pdfDisabled ?? undefined}
+            disabled={!!pdfDisabled}
             onSelect={choose(exportShopDrawings)}
           />
           <MenuItem
             label={EXPORT_ITEM_JSON}
-            tooltip={EXPORT_ITEM_SLICE9_TOOLTIP}
-            disabled
+            tooltip={jsonDisabled ?? undefined}
+            disabled={!!jsonDisabled}
             onSelect={choose(exportJSON)}
           />
           <div className="my-1 h-px bg-border" role="separator" />
           <MenuItem
             label={EXPORT_ITEM_IMPORT}
-            tooltip={EXPORT_ITEM_SLICE9_TOOLTIP}
-            disabled
             onSelect={choose(importJSON)}
           />
         </div>

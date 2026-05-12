@@ -2,35 +2,21 @@
 
 import { useCFS } from '@pascal-app/cfs'
 import { useScene } from '@pascal-app/core'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { SHORTCUTS, type ShortcutId } from './shortcuts'
 import { exportActions } from './use-export'
 
 /**
- * §7.6 — keyboard shortcuts for the CFS toolset. Hook is conditional on
- * `isCFSMode === true`: when CFS mode is off, no listener is registered, so
- * Pascal's own bindings work unchanged. When CFS mode is on, the shortcuts
- * below win.
+ * §7.6 — CFS keyboard shortcuts.
  *
- * Single-key shortcuts (`T`, `W`, `H`, `B`, `P`, `Esc`) only fire when no
- * input element has focus, so typing into a project-name field doesn't
- * activate a tool.
+ * Bindings come from `shortcuts.ts`. The hook is conditional on
+ * `isCFSMode === true` for the tool / Esc / shortcut-panel cluster;
+ * the mode-toggle (`M`) and the help panel (`?`) listen unconditionally
+ * so the user can flip into CFS mode from architectural mode and back
+ * via the keyboard.
  *
- * Slice 6 adds `H` for the service-hole tool. Slice 7 adds `B` for the
- * panel-break tool and `P` for the Panelize one-shot action. Slice 8 adds
- * `Cmd/Ctrl + Shift + B` (BOM quick-export) and `Cmd/Ctrl + Shift + D`
- * (DXF quick-export). The JSON and PDF quick-export shortcuts wait for
- * Slice 9.
+ * Single-letter shortcuts only fire when no input element has focus.
  */
-
-const TOOL_SHORTCUTS: Record<
-  string,
-  'cfs-door' | 'cfs-window' | 'cfs-service-hole' | 'cfs-panel-break'
-> = {
-  KeyT: 'cfs-door',
-  KeyW: 'cfs-window',
-  KeyH: 'cfs-service-hole',
-  KeyB: 'cfs-panel-break',
-}
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!target || !(target instanceof HTMLElement)) return false
@@ -41,52 +27,106 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return false
 }
 
-export function useCFSShortcuts(isActive: boolean): void {
+const HANDLERS: Record<ShortcutId, () => void> = {
+  'cfs:mode:toggle': () => {
+    const s = useCFS.getState()
+    s.setCFSMode(!s.isCFSMode)
+  },
+  'cfs:tool:opening': () => activateTool('cfs-door'),
+  'cfs:tool:window': () => activateTool('cfs-window'),
+  'cfs:tool:service-hole': () => activateTool('cfs-service-hole'),
+  'cfs:tool:panel-break': () => activateTool('cfs-panel-break'),
+  'cfs:action:panelize': () => {
+    const scene = useScene.getState()
+    const req = useCFS.getState().requestPanelize
+    for (const n of Object.values(scene.nodes)) {
+      if ((n as { type?: string }).type === 'cfs_wall_framing') {
+        req((n as { id: string }).id)
+      }
+    }
+  },
+  'cfs:action:cancel': () => {
+    useCFS.getState().setActiveTool(null)
+  },
+  'cfs:export:menu': () => exportActions.toggleMenu(),
+  'cfs:export:bom': () => exportActions.exportBOM(),
+  'cfs:export:dxf': () => exportActions.exportDXFs(),
+  'cfs:export:pdf': () => exportActions.exportShopDrawings(),
+  'cfs:export:json': () => exportActions.exportJSON(),
+  'cfs:help:shortcuts': () => helpPanelActions.toggle(),
+}
+
+type ActiveTool = 'cfs-door' | 'cfs-window' | 'cfs-service-hole' | 'cfs-panel-break'
+
+function activateTool(tool: ActiveTool): void {
+  const cfs = useCFS.getState()
+  cfs.setActiveTool(cfs.activeTool === tool ? null : tool)
+}
+
+// Tool / Esc / Panelize shortcuts only fire in CFS mode; help and mode-toggle
+// fire anywhere.
+const ALWAYS_ON: ShortcutId[] = ['cfs:mode:toggle', 'cfs:help:shortcuts']
+
+export function useCFSShortcuts(isCFSMode: boolean): void {
   useEffect(() => {
-    if (!isActive) return
     const handler = (e: KeyboardEvent) => {
-      if (isEditableTarget(e.target)) return
+      // Single-letter shortcuts (no modifier) bail when typing into a field.
+      const isModifierCombo = e.metaKey || e.ctrlKey || e.altKey
+      if (!isModifierCombo && isEditableTarget(e.target)) return
 
-      // Modifier-combination shortcuts go through their own dispatch so
-      // they survive the "skip modifier combos" guard below.
-      const primary = e.metaKey || e.ctrlKey
-      if (primary && e.shiftKey && !e.altKey) {
-        if (e.code === 'KeyB') {
-          e.preventDefault()
-          exportActions.exportBOM()
-          return
-        }
-        if (e.code === 'KeyD') {
-          e.preventDefault()
-          exportActions.exportDXFs()
-          return
-        }
-      }
-
-      if (e.metaKey || e.ctrlKey || e.altKey) return // skip remaining modifier combos
-      if (e.code === 'Escape') {
-        useCFS.getState().setActiveTool(null)
-        return
-      }
-      // `P` — Panelize all framings (no modal tool; one-shot action).
-      if (e.code === 'KeyP') {
+      for (const def of SHORTCUTS) {
+        if (!def.match(e)) continue
+        if (!isCFSMode && !ALWAYS_ON.includes(def.id)) continue
+        // §7.6.3 conflict resolution: Pascal listens on `window` for `t`/`b`
+        // (`packages/editor/src/hooks/use-keyboard.ts`); without
+        // stopPropagation, both the CFS tool AND Pascal's tool activate
+        // when CFS mode is on. We capture on `document`, run first, and
+        // stop the bubble before Pascal's window listener sees it.
         e.preventDefault()
-        const scene = useScene.getState()
-        const req = useCFS.getState().requestPanelize
-        for (const n of Object.values(scene.nodes)) {
-          if ((n as { type?: string }).type === 'cfs_wall_framing') {
-            req((n as { id: string }).id)
-          }
-        }
+        e.stopPropagation()
+        HANDLERS[def.id]()
         return
       }
-      const tool = TOOL_SHORTCUTS[e.code]
-      if (!tool) return
-      e.preventDefault()
-      const cfs = useCFS.getState()
-      cfs.setActiveTool(cfs.activeTool === tool ? null : tool)
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [isActive])
+  }, [isCFSMode])
+}
+
+// ── Help panel signal ──────────────────────────────────────────────────────
+// The ShortcutsPanel subscribes to this tiny module-level toggle. Stays
+// here (not in use-export) because it is unrelated to export status.
+
+let helpOpen = false
+const helpListeners = new Set<() => void>()
+
+function notify(): void {
+  for (const l of helpListeners) l()
+}
+
+export const helpPanelActions = {
+  open: () => {
+    helpOpen = true
+    notify()
+  },
+  close: () => {
+    helpOpen = false
+    notify()
+  },
+  toggle: () => {
+    helpOpen = !helpOpen
+    notify()
+  },
+}
+
+export function useHelpPanelOpen(): boolean {
+  const [, force] = useState(0)
+  useEffect(() => {
+    const l = () => force((n) => n + 1)
+    helpListeners.add(l)
+    return () => {
+      helpListeners.delete(l)
+    }
+  }, [])
+  return helpOpen
 }

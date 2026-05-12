@@ -29,7 +29,7 @@ import {
 } from './header-components'
 import { preflight } from './preflight'
 
-interface BOMRow {
+export interface BOMRow {
   panelId: string
   mark: string
   designation: string
@@ -91,7 +91,13 @@ export async function exportBOM(
 
 // ── Row expansion ───────────────────────────────────────────────────────────
 
-function expandPanelToBOMRows(
+/**
+ * Expand one panel's members into BOM rows, applying the built-up
+ * header expansion table. Exported because the PDF shop-drawings
+ * mini-table (§6.4) must render the same row set as the xlsx per-panel
+ * tab, post-expansion.
+ */
+export function expandPanelToBOMRows(
   panel: CFSPanel,
   scene: SceneLike,
   library: CFSMemberLibrary,

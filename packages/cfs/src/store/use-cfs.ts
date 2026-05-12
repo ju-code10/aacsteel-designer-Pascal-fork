@@ -80,6 +80,14 @@ export interface CFSStoreState {
    * pass.
    */
   panelizationWarnings: Record<string, string[]>
+
+  /**
+   * §7.8.1 welcome callout. Flipped true after the user dismisses the
+   * first-time callout. Session-only by design (A.4 slice-9 row) — does
+   * not persist across reloads; v2 may add a `localStorage`-backed
+   * variant per user preference.
+   */
+  welcomeCalloutDismissed: boolean
 }
 
 export interface CFSStoreActions {
@@ -107,6 +115,9 @@ export interface CFSStoreActions {
   consumePendingPanelize: (framingId: string) => void
   /** Replace the warning list for a framing. Cleared with `[]`. */
   setPanelizationWarnings: (framingId: string, warnings: string[]) => void
+
+  /** Dismiss the §7.8.1 welcome callout for this session. */
+  dismissWelcomeCallout: () => void
 }
 
 export type CFSStore = CFSStoreState & CFSStoreActions
@@ -132,6 +143,7 @@ const initialState: CFSStoreState = {
   libraryLoadError: null,
   pendingPanelizeFramingIds: new Set<string>(),
   panelizationWarnings: {},
+  welcomeCalloutDismissed: false,
 }
 
 /** §7.3.2 — clamps for the diameter stepper / scroll-wheel adjustment. */
@@ -337,6 +349,8 @@ export const useCFS = create<CFSStore>()(
           return { panelizationWarnings: next }
         })
       },
+
+      dismissWelcomeCallout: () => set({ welcomeCalloutDismissed: true }),
     }),
     {
       name: 'aacsteel.cfs',

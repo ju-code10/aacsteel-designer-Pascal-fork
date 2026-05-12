@@ -3,6 +3,7 @@
 import { useCFS } from '@pascal-app/cfs'
 import type { CFSActiveTool } from '@pascal-app/cfs'
 import { useScene } from '@pascal-app/core'
+import { shortcutHint } from '../../lib/shortcuts'
 import {
   OPENING_TOOL_DOOR_LABEL,
   OPENING_TOOL_DOOR_TOOLTIP,
@@ -67,7 +68,7 @@ export function OpeningToolbar(): React.JSX.Element | null {
         type="button"
         className={`${BUTTON_BASE} ${activeTool === 'cfs-door' ? BUTTON_ACTIVE : BUTTON_INACTIVE}`}
         onClick={click('cfs-door')}
-        title={OPENING_TOOL_DOOR_TOOLTIP}
+        title={`${OPENING_TOOL_DOOR_TOOLTIP} ${shortcutHint('cfs:tool:opening')}`}
         aria-pressed={activeTool === 'cfs-door'}
       >
         {OPENING_TOOL_DOOR_LABEL}
@@ -76,7 +77,7 @@ export function OpeningToolbar(): React.JSX.Element | null {
         type="button"
         className={`${BUTTON_BASE} ${activeTool === 'cfs-window' ? BUTTON_ACTIVE : BUTTON_INACTIVE}`}
         onClick={click('cfs-window')}
-        title={OPENING_TOOL_WINDOW_TOOLTIP}
+        title={`${OPENING_TOOL_WINDOW_TOOLTIP} ${shortcutHint('cfs:tool:window')}`}
         aria-pressed={activeTool === 'cfs-window'}
       >
         {OPENING_TOOL_WINDOW_LABEL}
@@ -85,7 +86,7 @@ export function OpeningToolbar(): React.JSX.Element | null {
         type="button"
         className={`${BUTTON_BASE} ${activeTool === 'cfs-service-hole' ? BUTTON_ACTIVE : BUTTON_INACTIVE}`}
         onClick={click('cfs-service-hole')}
-        title={SERVICE_HOLE_TOOL_TOOLTIP}
+        title={`${SERVICE_HOLE_TOOL_TOOLTIP} ${shortcutHint('cfs:tool:service-hole')}`}
         aria-pressed={activeTool === 'cfs-service-hole'}
       >
         {SERVICE_HOLE_TOOL_LABEL}
@@ -94,7 +95,7 @@ export function OpeningToolbar(): React.JSX.Element | null {
         type="button"
         className={`${BUTTON_BASE} ${activeTool === 'cfs-panel-break' ? BUTTON_ACTIVE : BUTTON_INACTIVE}`}
         onClick={click('cfs-panel-break')}
-        title={PANEL_BREAK_TOOL_TOOLTIP}
+        title={`${PANEL_BREAK_TOOL_TOOLTIP} ${shortcutHint('cfs:tool:panel-break')}`}
         aria-pressed={activeTool === 'cfs-panel-break'}
       >
         {PANEL_BREAK_TOOL_LABEL}
@@ -103,7 +104,7 @@ export function OpeningToolbar(): React.JSX.Element | null {
         type="button"
         className={`${BUTTON_BASE} ${BUTTON_INACTIVE}`}
         onClick={panelizeAll}
-        title={PANELIZE_ACTION_TOOLTIP}
+        title={`${PANELIZE_ACTION_TOOLTIP} ${shortcutHint('cfs:action:panelize')}`}
       >
         {PANELIZE_ACTION_LABEL}
       </button>

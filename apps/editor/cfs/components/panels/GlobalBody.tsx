@@ -2,6 +2,7 @@
 
 import { updateProjectSettings, useProjectSettings } from '@pascal-app/cfs'
 import { useState } from 'react'
+import { WelcomeCallout } from './WelcomeCallout'
 
 const PANEL_MAX_WIDTH_MIN_MM = 1500
 const PANEL_MAX_WIDTH_MAX_MM = 12_000
@@ -30,6 +31,7 @@ export function GlobalBody(): React.JSX.Element | null {
 
   return (
     <div className="flex flex-col gap-3 text-xs">
+      <WelcomeCallout />
       <section>
         <h3 className="mb-1 font-semibold text-muted-foreground uppercase tracking-wide">
           Panel constraints

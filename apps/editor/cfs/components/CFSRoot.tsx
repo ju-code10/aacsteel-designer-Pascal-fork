@@ -16,6 +16,7 @@ import { CFSGeometrySystem } from '../systems/CFSGeometrySystem'
 import { CFSPanelizationSystem } from '../systems/CFSPanelizationSystem'
 import { CFSPanelOverlay } from '../systems/CFSPanelOverlay'
 import { InspectorPanel } from './panels/InspectorPanel'
+import { ShortcutsPanel } from './panels/ShortcutsPanel'
 import { CFSDoorTool } from './tools/CFSDoorTool'
 import { CFSPanelBreakTool } from './tools/CFSPanelBreakTool'
 import { CFSServiceHoleTool } from './tools/CFSServiceHoleTool'
@@ -82,6 +83,7 @@ export function CFSRoot(): React.JSX.Element {
       <CFSServiceHoleTool />
       <CFSPanelBreakTool />
       <InspectorPanel />
+      <ShortcutsPanel />
     </>
   )
 }

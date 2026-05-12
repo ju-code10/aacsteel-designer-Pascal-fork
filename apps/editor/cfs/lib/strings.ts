@@ -52,4 +52,14 @@ export const EXPORT_ITEM_DXF = 'Panel DXFs (.zip)'
 export const EXPORT_ITEM_PDF = 'Shop drawings (.pdf)'
 export const EXPORT_ITEM_JSON = 'Scene (.json)'
 export const EXPORT_ITEM_IMPORT = 'Import scene…'
-export const EXPORT_ITEM_SLICE9_TOOLTIP = 'Ships in Slice 9.'
+
+// §7.8.1 welcome callout — shown above ProjectSettingsBody the first time
+// the user toggles CFS mode in a session.
+export const WELCOME_CALLOUT_TITLE = 'Welcome to CFS mode.'
+export const WELCOME_CALLOUT_BODY =
+  'Draw a wall to start framing it. Your project defaults are below — review them now, since changes after framing will re-layout every wall.'
+export const WELCOME_CALLOUT_DISMISS_LABEL = 'Got it'
+
+// §7.8.3 + §7.8.4 — empty-state hints inside the wall-framing body.
+export const EMPTY_OPENINGS_HINT = 'No openings yet. Press T or click the Opening tool to place one.'
+export const EMPTY_PANELS_HINT = 'This wall has not been panelized. Click Panelize below or press P to split the wall into shippable panels.'
