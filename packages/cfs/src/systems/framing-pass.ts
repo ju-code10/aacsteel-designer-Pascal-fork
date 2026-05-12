@@ -23,6 +23,8 @@ import {
   wallHeightFromPascalWall,
   wallLengthFromPascalWall,
 } from '../lib/wall-frame'
+import { wallLevelElevation_mm } from '../lib/level-elevation'
+import type { SceneLike } from '../lib/scene-walk'
 import {
   computeOpeningLayout,
   fieldStudExcluded,
@@ -68,26 +70,28 @@ function buildDesiredMembers(
   ownsStartChord: boolean,
   ownsEndChord: boolean,
   openingLayout: OpeningLayoutResult,
+  levelElevation_mm: number,
 ): DesiredMember[] {
   const length_mm = wallLengthFromPascalWall(wall)
   const height_mm =
     framing.wallHeight_mm ?? wallHeightFromPascalWall(wall) ?? settings.wallHeight_mm
   const spacing_mm = framing.studSpacing_mm ?? settings.defaultStudSpacing_mm
   const desired: DesiredMember[] = []
+  const z = levelElevation_mm
 
   // Step 2 — tracks.
   desired.push({
     role: 'top-track',
     sectionId: trackSection.id,
-    start: localToWorld(wall, { x_mm: 0, y_mm: height_mm, z_mm: 0 }),
-    end: localToWorld(wall, { x_mm: length_mm, y_mm: height_mm, z_mm: 0 }),
+    start: localToWorld(wall, { x_mm: 0, y_mm: height_mm, z_mm: 0 }, z),
+    end: localToWorld(wall, { x_mm: length_mm, y_mm: height_mm, z_mm: 0 }, z),
     sourceOpeningId: null,
   })
   desired.push({
     role: 'bottom-track',
     sectionId: trackSection.id,
-    start: localToWorld(wall, { x_mm: 0, y_mm: 0, z_mm: 0 }),
-    end: localToWorld(wall, { x_mm: length_mm, y_mm: 0, z_mm: 0 }),
+    start: localToWorld(wall, { x_mm: 0, y_mm: 0, z_mm: 0 }, z),
+    end: localToWorld(wall, { x_mm: length_mm, y_mm: 0, z_mm: 0 }, z),
     sourceOpeningId: null,
   })
 
@@ -104,8 +108,8 @@ function buildDesiredMembers(
     desired.push({
       role,
       sectionId: studSection.id,
-      start: localToWorld(wall, { x_mm: x, y_mm: 0, z_mm: 0 }),
-      end: localToWorld(wall, { x_mm: x, y_mm: height_mm, z_mm: 0 }),
+      start: localToWorld(wall, { x_mm: x, y_mm: 0, z_mm: 0 }, z),
+      end: localToWorld(wall, { x_mm: x, y_mm: height_mm, z_mm: 0 }, z),
       sourceOpeningId: null,
     })
   }
@@ -117,8 +121,8 @@ function buildDesiredMembers(
     desired.push({
       role: 'stud',
       sectionId: studSection.id,
-      start: localToWorld(wall, { x_mm: x, y_mm: 0, z_mm: 0 }),
-      end: localToWorld(wall, { x_mm: x, y_mm: height_mm, z_mm: 0 }),
+      start: localToWorld(wall, { x_mm: x, y_mm: 0, z_mm: 0 }, z),
+      end: localToWorld(wall, { x_mm: x, y_mm: height_mm, z_mm: 0 }, z),
       sourceOpeningId: null,
     })
   }
@@ -130,8 +134,8 @@ function buildDesiredMembers(
     desired.push({
       role: m.role,
       sectionId: m.sectionId,
-      start: localToWorld(wall, { x_mm: m.startX_mm, y_mm: m.startY_mm, z_mm: 0 }),
-      end: localToWorld(wall, { x_mm: m.endX_mm, y_mm: m.endY_mm, z_mm: 0 }),
+      start: localToWorld(wall, { x_mm: m.startX_mm, y_mm: m.startY_mm, z_mm: 0 }, z),
+      end: localToWorld(wall, { x_mm: m.endX_mm, y_mm: m.endY_mm, z_mm: 0 }, z),
       sourceOpeningId: m.sourceOpeningId,
     })
   }
@@ -358,6 +362,15 @@ function runFramingPassInner(): FramingProcessResult[] {
       openings: toLayoutInputOpenings(openings),
     })
 
+    // §multi-story fix: lift this wall's framing y-coordinates by the
+    // cumulative elevation of its parent level. Without this the upper-
+    // level walls produce members at the ground floor (Slice 9 bug).
+    const wallId = (wall as PascalWallLike).id
+    const elevation_mm = wallLevelElevation_mm(
+      sceneState as unknown as SceneLike,
+      wallId,
+    )
+
     const desiredRaw = buildDesiredMembers(
       wall,
       framing,
@@ -367,6 +380,7 @@ function runFramingPassInner(): FramingProcessResult[] {
       ownsStart,
       ownsEnd,
       openingLayout,
+      elevation_mm,
     )
     const desired = materialiseDesired(framing, desiredRaw)
     const existing = childrenOfType<CFSMember>(sceneState.nodes, framingId, 'cfs_member')

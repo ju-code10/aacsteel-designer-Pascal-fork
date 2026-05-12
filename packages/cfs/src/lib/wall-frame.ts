@@ -43,13 +43,22 @@ export interface WallLocalPoint {
  * Pascal level coords are 2D (x, z in three-space convention), with y always
  * vertical. We emit a CFSPoint3D in millimetres, in the same level basis the
  * other CFS nodes use.
+ *
+ * `levelElevation_mm` (default 0) lifts the world y by the wall's parent
+ * level's stacked elevation. The framing pass computes it via
+ * `wallLevelElevation_mm`; without this offset, upper-level walls produce
+ * CFS members at the ground floor — the Slice 9 multi-story bug.
  */
-export function localToWorld(wall: PascalWallLike, p: WallLocalPoint): CFSPoint3D {
+export function localToWorld(
+  wall: PascalWallLike,
+  p: WallLocalPoint,
+  levelElevation_mm: number = 0,
+): CFSPoint3D {
   const length_mm = wallLengthFromPascalWall(wall)
   if (length_mm === 0) {
     return {
       x_mm: wall.start[0] * M_TO_MM,
-      y_mm: p.y_mm,
+      y_mm: p.y_mm + levelElevation_mm,
       z_mm: wall.start[1] * M_TO_MM,
     }
   }
@@ -62,7 +71,7 @@ export function localToWorld(wall: PascalWallLike, p: WallLocalPoint): CFSPoint3
   const pz = ux
   return {
     x_mm: wall.start[0] * M_TO_MM + ux * p.x_mm + px * p.z_mm,
-    y_mm: p.y_mm,
+    y_mm: p.y_mm + levelElevation_mm,
     z_mm: wall.start[1] * M_TO_MM + uz * p.x_mm + pz * p.z_mm,
   }
 }
