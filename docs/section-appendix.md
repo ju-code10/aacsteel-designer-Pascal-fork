@@ -232,6 +232,24 @@ Group headings reflect themes that emerged across the spec slices.
 - **Clear-all-data command** that clears both IndexedDB scene and `useCFS`
   preferences.
 
+### Slice 9 carry-forwards (added 2026-05-12)
+
+Items deliberately deferred during the Slice 9 polish pass. Recorded here so the v2 plan inherits them with their original context.
+
+- **One-undo-step JSON import.** `withBatchedUndo` in `packages/cfs/src/store/with-batched-undo.ts` currently *suppresses* Zundo history rather than collapsing batched mutations into one entry, so JSON-11 ("Import mid-edit: existing scene replaced; one undo step reverts the entire import") is skipped. Requires the full §4.9 pre-/post-frame `pendingBatchLabel` machinery to be implemented in Pascal upstream or worked around with a CFS-owned batcher.
+- **AISI clause numbers in compliance reasons.** Slice 6 carry-over; the validator reasons still reference rules R1–R4 by name rather than by cited clause numbers from AISI S220/S240. Citation sourcing remains a separate task.
+- **Box-header BOM reconciliation.** Spec §6.1 contracts that the framing pass emits *one* `header` `CFSMember` per opening and the BOM expander then explodes it into the per-piece row set (4 rows for a box header). Today the framing pass emits one `CFSMember` per physical piece — so a real-editor box-header BOM shows 4× the row count the §6.1 contract calls for. Reconciliation requires changes to `packages/cfs/src/systems/framing-pass.ts`; deferred to keep Slice 9 scoped to PDF + JSON + polish.
+- **WCAG AA light-theme contrast failures.** Three role swatches in the inspector fail the 3:1 UI threshold against the editor's light-theme background:
+  - `top-track` / `bottom-track` / `sill-track` (`#9ca3af`) — ratio 2.35:1.
+  - `header` / `sill` (`#f59e0b`) — ratio 1.96:1.
+  - `cripple` (`#22d3ee`) — ratio 1.66:1.
+  All three pass comfortably in the dark theme. v2 fix: bump the saturated colors darker and the gray slightly darker, retested per theme.
+- **LocalStorage-persisted welcome callout dismissal.** v1 ships session-only dismissal (A.4 default). A user preference flag in `useCFS.persist`'s partialize block would persist across reloads.
+- **Per-vertical-member dimension tick marks (DXF + PDF).** §6.3 + §6.4 both call for per-stud tick marks on the bottom dimension chain. v1 emits the overall panel-width dimension only; the tick-mark loop in `dxf.ts:drawDimensions` is currently a no-op.
+- **Cold mode-toggle latency.** Slice 5 carry-over; first toggle into CFS mode takes ~333 ms because the panel-projection / extrusion caches warm lazily. Pre-warming on app load would fix it.
+- **`Tab` cycle through inspector controls.** §7.6.2 lists `Tab` as a binding; relies on default browser focus order which is mostly correct but has not been explicitly verified across every inspector body.
+- **Cross-level corner detection.** `packages/cfs/src/lib/corner-detect.ts` compares chord positions by `(x_mm, z_mm)` only — y is dropped. Two stacked walls on different levels that share the same `(x, z)` endpoints are falsely treated as corner-shared, so one of them may skip its chord stud. Surfaced by the multi-story fix (commit `fix: multi-story CFS framing renders at level elevation`). v2: include y in the coincidence predicate, or scope peer collection to same-level framings only.
+
 ### Exports v2
 
 - **Per-building exports.** v1 emits scene-wide deliverables. v2 picks granularity
@@ -339,6 +357,7 @@ mistakes are corrected with a new row, not by editing prior rows.
 | (TBD by committer) | E | 6 | Exporters: BOM xlsx, cut list csv, DXF, PDF, JSON round-trip |
 | (TBD by committer) | F | 7 | UI contract: toolbar, tools, inspector, export menu, shortcuts, accessibility |
 | 2026-04-30 | G | All | Polish & sweep: ten cross-section reconciliations (R-01 through R-10) and this appendix. Document tagged `spec-v1.0`. |
+| 2026-05-12 | build 9 | §0.2, A.5 | Slice 9 carry-forwards recorded; §0.2 marked v1 code-complete pending manual verification + `v1.0.0` tag. |
 
 After tag `spec-v1.0`, future rows take this shape:
 

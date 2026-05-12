@@ -24,7 +24,11 @@ If a slice is in flight when the spec needs to change, finish the slice first, t
 
 ### 0.2 Scope of v1
 
-v1 of AACSteel-Designer is the output of Slices 1 through 9 in the Execution Plan. v1 is considered complete when:
+v1 of AACSteel-Designer is the output of Slices 1 through 9 in the Execution Plan.
+
+**Status as of 2026-05-12: v1 is code-complete.** Slices 1–9 have all shipped; the manual verification checklist from Execution Plan §4.10 remains to be run on a fresh clone before tagging `v1.0.0`. Carry-forward open items from each slice are tracked in appendix A.5.
+
+v1 is considered complete when:
 
 - A user can draw walls and place openings in CFS mode.
 - The framing (studs, tracks, headers, jambs, sills, cripples) is generated automatically.
