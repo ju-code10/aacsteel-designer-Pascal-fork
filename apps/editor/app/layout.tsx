@@ -2,7 +2,6 @@ import { Agentation } from 'agentation'
 import { GeistPixelSquare } from 'geist/font/pixel'
 import { Barlow } from 'next/font/google'
 import localFont from 'next/font/local'
-import Script from 'next/script'
 import './globals.css'
 
 const geistSans = localFont({
@@ -31,15 +30,6 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${GeistPixelSquare.variable} ${barlow.variable}`}
       lang="en"
     >
-      <head>
-        {process.env.NODE_ENV === 'development' && (
-          <Script
-            crossOrigin="anonymous"
-            src="//unpkg.com/react-scan/dist/auto.global.js"
-            strategy="beforeInteractive"
-          />
-        )}
-      </head>
       <body className="font-sans">
         {children}
         {process.env.NODE_ENV === 'development' && <Agentation />}
