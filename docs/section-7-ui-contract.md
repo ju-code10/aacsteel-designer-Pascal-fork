@@ -1038,18 +1038,35 @@ Single-key shortcuts (`T`, `H`, `B`, `P`, `M`) only fire when no input element h
 
 ### 7.6.3 Conflict resolution with Pascal's bindings
 
-Build slice 9 must verify that the shortcuts above do not conflict with Pascal's existing bindings. If a conflict exists, this section's shortcut wins **only when `isCFSMode === true`**; in architectural mode, Pascal's binding wins. This rule is enforced in `use-cfs-shortcuts.ts`:
+Build slice 9 must verify that the shortcuts above do not conflict with Pascal's existing bindings. The default rule is that a CFS shortcut wins **only when `isCFSMode === true`**; in architectural mode, Pascal's binding wins.
+
+**Two exceptions are always-on.** A small allowlist (`ALWAYS_ON`) fires regardless of `isCFSMode`:
+
+- **`M`** (mode toggle) — the user needs to be able to enter CFS mode *from* architectural mode, so the binding cannot itself be gated on being in CFS mode.
+- **`?`** (open `ShortcutsPanel`) — help is useful in either mode and never collides with a Pascal letter binding.
+
+Every other shortcut (tool letters, `Esc`, `P`, the export bindings) is gated. This is enforced in `use-cfs-shortcuts.ts`:
 
 ```ts
+const ALWAYS_ON: ShortcutId[] = ['cfs:mode:toggle', 'cfs:help:shortcuts']
+
 useEffect(() => {
-  if (!isCFSMode) return;
-  const handler = (e: KeyboardEvent) => { /* dispatch */ };
-  document.addEventListener('keydown', handler);
-  return () => document.removeEventListener('keydown', handler);
-}, [isCFSMode]);
+  const handler = (e: KeyboardEvent) => {
+    for (const def of SHORTCUTS) {
+      if (!def.match(e)) continue
+      if (!isCFSMode && !ALWAYS_ON.includes(def.id)) continue
+      e.preventDefault()
+      e.stopPropagation()
+      HANDLERS[def.id]()
+      return
+    }
+  }
+  document.addEventListener('keydown', handler)
+  return () => document.removeEventListener('keydown', handler)
+}, [isCFSMode])
 ```
 
-The hook is conditional on `isCFSMode`; when false, no listener is registered, so Pascal's bindings work unchanged.
+The listener is registered unconditionally so the `ALWAYS_ON` keys reach it, but every non-allowlisted shortcut early-returns when `isCFSMode === false`, so Pascal's bindings work unchanged in architectural mode.
 
 If build slice 9 finds a conflict that breaks a CFS shortcut even in CFS mode (e.g., Pascal's listener is on the same key with `stopPropagation`), the conflict is recorded as an open item and resolved by either changing the CFS letter or coordinating an upstream Pascal change. This section commits to the bindings above; the verification is slice 9's job.
 
