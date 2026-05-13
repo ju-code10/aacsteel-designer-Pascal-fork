@@ -1,7 +1,7 @@
 'use client'
 
 import { useCFS } from '@pascal-app/cfs'
-import { useScene } from '@pascal-app/core'
+import { emitter, useScene } from '@pascal-app/core'
 import { useEffect, useState } from 'react'
 import { SHORTCUTS, type ShortcutId } from './shortcuts'
 import { exportActions } from './use-export'
@@ -82,8 +82,18 @@ export function useCFSShortcuts(isCFSMode: boolean): void {
         // stopPropagation, both the CFS tool AND Pascal's tool activate
         // when CFS mode is on. We capture on `document`, run first, and
         // stop the bubble before Pascal's window listener sees it.
+        //
+        // Exception — Esc (`cfs:action:cancel`): we deliberately let the
+        // event continue to Pascal so its window-level Esc handler also
+        // runs and emits `tool:cancel`. That gives us a second cancel
+        // path through the emitter subscription below — if for any reason
+        // this keydown handler doesn't reach (focus on an upstream
+        // element with its own keydown, a stopPropagation from an
+        // intermediate handler, etc.), the tool still clears.
         e.preventDefault()
-        e.stopPropagation()
+        if (def.id !== 'cfs:action:cancel') {
+          e.stopPropagation()
+        }
         HANDLERS[def.id]()
         return
       }
@@ -91,6 +101,21 @@ export function useCFSShortcuts(isCFSMode: boolean): void {
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [isCFSMode])
+
+  // Belt-and-suspenders: Pascal emits `tool:cancel` on Esc (and via any
+  // other tool-cancel UI path it has). Subscribe so a CFS tool clears
+  // whenever Pascal's cancel fires — independent of whether our keydown
+  // handler above ran. setActiveTool(null) is idempotent when there is
+  // no active tool, so this is safe even outside CFS mode.
+  useEffect(() => {
+    const onCancel = () => {
+      useCFS.getState().setActiveTool(null)
+    }
+    emitter.on('tool:cancel', onCancel)
+    return () => {
+      emitter.off('tool:cancel', onCancel)
+    }
+  }, [])
 }
 
 // ── Help panel signal ──────────────────────────────────────────────────────
