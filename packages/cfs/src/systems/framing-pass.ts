@@ -25,7 +25,10 @@ import {
 } from '../lib/wall-frame'
 import { wallLevelElevation_mm } from '../lib/level-elevation'
 import type { SceneLike } from '../lib/scene-walk'
-import { makeSlabElevationFn } from '../lib/slab-elevation'
+import {
+  makeSlabElevationFn,
+  type SlabElevationForWallFn,
+} from '../lib/slab-elevation'
 import { getInheritedStudPositions_mm } from '../lib/stacked-walls'
 import { findStudCandidatesAlongWall } from '../lib/stud-candidates'
 import {
@@ -212,25 +215,48 @@ function childrenOfType<T>(
 }
 
 function collectPeerChordPositions(
-  nodes: Record<string, AnyNode>,
+  scene: SceneLike,
   excludeFramingId: string,
-): { framingId: string; position: { x_mm: number; z_mm: number } }[] {
-  const peers: { framingId: string; position: { x_mm: number; z_mm: number } }[] = []
-  for (const n of Object.values(nodes)) {
+  slabFn: SlabElevationForWallFn,
+): {
+  framingId: string
+  position: { x_mm: number; y_mm: number; z_mm: number }
+}[] {
+  const peers: {
+    framingId: string
+    position: { x_mm: number; y_mm: number; z_mm: number }
+  }[] = []
+  for (const n of Object.values(scene.nodes)) {
     const t = (n as { type?: string }).type
     if (t !== 'cfs_wall_framing') continue
     const framing = n as unknown as CFSWallFraming
     if (framing.id === excludeFramingId) continue
-    const wall = nodes[framing.parentId] as unknown as PascalWallLike | undefined
+    const wall = scene.nodes[framing.parentId] as unknown as
+      | PascalWallLike
+      | undefined
     if (!wall || !wall.start || !wall.end) continue
     const length_mm = wallLengthFromPascalWall(wall)
+    // Peer chord candidates need their world y to include the level
+    // elevation so the corner detector can distinguish stacked-wall
+    // corners (different levels, same plan position) from real L-corners.
+    const peerElevation_mm =
+      wallLevelElevation_mm(scene, wall.id, slabFn) +
+      Math.max(0, slabFn(wall.id))
     peers.push({
       framingId: framing.id,
-      position: chordPositionFromWorld(localToWorld(wall, { x_mm: 0, y_mm: 0, z_mm: 0 })),
+      position: chordPositionFromWorld(
+        localToWorld(wall, { x_mm: 0, y_mm: 0, z_mm: 0 }, peerElevation_mm),
+      ),
     })
     peers.push({
       framingId: framing.id,
-      position: chordPositionFromWorld(localToWorld(wall, { x_mm: length_mm, y_mm: 0, z_mm: 0 })),
+      position: chordPositionFromWorld(
+        localToWorld(
+          wall,
+          { x_mm: length_mm, y_mm: 0, z_mm: 0 },
+          peerElevation_mm,
+        ),
+      ),
     })
   }
   return peers
@@ -332,12 +358,39 @@ function runFramingPassInner(): FramingProcessResult[] {
       continue
     }
 
-    const peers = collectPeerChordPositions(sceneState.nodes, framingId)
+    // §multi-story fix: lift this wall's framing y-coordinates by the
+    // cumulative elevation of its parent level. Without this the upper-
+    // level walls produce members at the ground floor (Slice 9 bug).
+    //
+    // Slab fix: Pascal also lifts each wall's mesh by the slab thickness
+    // beneath it (`wall-system.tsx` → `mesh.position.y = slabElevation`).
+    // Studs must follow that lift or they pierce the slab from below;
+    // upper levels must also include the slab in their cumulative stack.
+    // We pass `slabElevationFromManager` so both effects are accounted
+    // for — the level math reads slabs of *prior* levels (cumulative
+    // stack), then we add the *this* wall's slab on top.
+    //
+    // The elevation is computed up-front so the corner-detect call below
+    // sees the chord positions at their true world y — that's how stacked
+    // walls (different levels, same plan) are kept independent rather
+    // than falsely merging chord ownership.
+    const wallId = (wall as PascalWallLike).id
+    const sceneLike = sceneState as unknown as SceneLike
+    const slabFn = makeSlabElevationFn(sceneLike)
+    const levelBase_mm = wallLevelElevation_mm(sceneLike, wallId, slabFn)
+    const thisWallSlab_mm = Math.max(0, slabFn(wallId))
+    const elevation_mm = levelBase_mm + thisWallSlab_mm
+
+    const peers = collectPeerChordPositions(sceneLike, framingId, slabFn)
     const startWorld = chordPositionFromWorld(
-      localToWorld(wall, { x_mm: 0, y_mm: 0, z_mm: 0 }),
+      localToWorld(wall, { x_mm: 0, y_mm: 0, z_mm: 0 }, elevation_mm),
     )
     const endWorld = chordPositionFromWorld(
-      localToWorld(wall, { x_mm: wallLengthFromPascalWall(wall), y_mm: 0, z_mm: 0 }),
+      localToWorld(
+        wall,
+        { x_mm: wallLengthFromPascalWall(wall), y_mm: 0, z_mm: 0 },
+        elevation_mm,
+      ),
     )
     const ownsStart = isCornerOwned(framingId, startWorld, peers)
     const ownsEnd = isCornerOwned(framingId, endWorld, peers)
@@ -360,24 +413,6 @@ function runFramingPassInner(): FramingProcessResult[] {
       defaultHeaderType: headerDefault,
       openings: toLayoutInputOpenings(openings),
     })
-
-    // §multi-story fix: lift this wall's framing y-coordinates by the
-    // cumulative elevation of its parent level. Without this the upper-
-    // level walls produce members at the ground floor (Slice 9 bug).
-    //
-    // Slab fix: Pascal also lifts each wall's mesh by the slab thickness
-    // beneath it (`wall-system.tsx` → `mesh.position.y = slabElevation`).
-    // Studs must follow that lift or they pierce the slab from below;
-    // upper levels must also include the slab in their cumulative stack.
-    // We pass `slabElevationFromManager` so both effects are accounted
-    // for — the level math reads slabs of *prior* levels (cumulative
-    // stack), then we add the *this* wall's slab on top.
-    const wallId = (wall as PascalWallLike).id
-    const sceneLike = sceneState as unknown as SceneLike
-    const slabFn = makeSlabElevationFn(sceneLike)
-    const levelBase_mm = wallLevelElevation_mm(sceneLike, wallId, slabFn)
-    const thisWallSlab_mm = Math.max(0, slabFn(wallId))
-    const elevation_mm = levelBase_mm + thisWallSlab_mm
 
     // Stack-load alignment: if a wall directly below shares this wall's
     // plan footprint (within 100 mm), inherit its field-stud positions
