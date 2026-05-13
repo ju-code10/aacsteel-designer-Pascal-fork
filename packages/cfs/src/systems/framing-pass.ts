@@ -14,7 +14,11 @@ import type { CFSMemberLibrary, CFSSection } from '../schema/cfs-member-library'
 import { getActiveLibrary, getProjectSettings } from '../store/selectors'
 import { useCFS } from '../store/use-cfs'
 import { withBatchedUndo } from '../store/with-batched-undo'
-import { chordPositionFromWorld, isCornerOwned } from '../lib/corner-detect'
+import {
+  chordPositionFromWorld,
+  isCornerOwned,
+  wallDirection,
+} from '../lib/corner-detect'
 import { diffMembers } from '../lib/diff-members'
 import { sumWeights } from '../lib/sum-weights'
 import {
@@ -218,14 +222,8 @@ function collectPeerChordPositions(
   scene: SceneLike,
   excludeFramingId: string,
   slabFn: SlabElevationForWallFn,
-): {
-  framingId: string
-  position: { x_mm: number; y_mm: number; z_mm: number }
-}[] {
-  const peers: {
-    framingId: string
-    position: { x_mm: number; y_mm: number; z_mm: number }
-  }[] = []
+): import('../lib/corner-detect').ChordCandidate[] {
+  const peers: import('../lib/corner-detect').ChordCandidate[] = []
   for (const n of Object.values(scene.nodes)) {
     const t = (n as { type?: string }).type
     if (t !== 'cfs_wall_framing') continue
@@ -236,17 +234,21 @@ function collectPeerChordPositions(
       | undefined
     if (!wall || !wall.start || !wall.end) continue
     const length_mm = wallLengthFromPascalWall(wall)
-    // Peer chord candidates need their world y to include the level
-    // elevation so the corner detector can distinguish stacked-wall
-    // corners (different levels, same plan position) from real L-corners.
+    // Peer chord candidates carry both their world y (so cross-level
+    // chord coincidences don't false-merge) and their plan direction
+    // (so an L-corner where two perpendicular walls meet keeps both
+    // chords — doubled-chord — while two collinear walls sharing an
+    // endpoint still merge to one).
     const peerElevation_mm =
       wallLevelElevation_mm(scene, wall.id, slabFn) +
       Math.max(0, slabFn(wall.id))
+    const dir = wallDirection(wall)
     peers.push({
       framingId: framing.id,
       position: chordPositionFromWorld(
         localToWorld(wall, { x_mm: 0, y_mm: 0, z_mm: 0 }, peerElevation_mm),
       ),
+      direction: dir,
     })
     peers.push({
       framingId: framing.id,
@@ -257,6 +259,7 @@ function collectPeerChordPositions(
           peerElevation_mm,
         ),
       ),
+      direction: dir,
     })
   }
   return peers
@@ -392,8 +395,9 @@ function runFramingPassInner(): FramingProcessResult[] {
         elevation_mm,
       ),
     )
-    const ownsStart = isCornerOwned(framingId, startWorld, peers)
-    const ownsEnd = isCornerOwned(framingId, endWorld, peers)
+    const wallDir = wallDirection(wall)
+    const ownsStart = isCornerOwned(framingId, startWorld, wallDir, peers)
+    const ownsEnd = isCornerOwned(framingId, endWorld, wallDir, peers)
 
     // Slice 4: run the opening layout *before* building the desired list so
     // chord promotions, field-stud exclusions, and opening-derived members

@@ -1,20 +1,26 @@
-// Stud-position inheritance for stacked walls (CFS detailing best
-// practice: studs on an upper-level wall sit directly above studs on
-// the wall below so axial load transfers straight down through the
-// stack rather than bearing on track only).
+// Stud-position inheritance for stacked walls.
 //
-// When the framing pass runs for a wall, it asks this module:
-//   "Is there a wall directly below me with the same plan footprint?
-//    If so, what are its field-stud positions in MY coordinate system?"
+// CFS detailing best practice: studs on an upper-level wall sit directly
+// above studs on the wall below so axial load transfers straight down
+// through the stack rather than bearing on the track only. To express
+// this in CFS the framing pass asks this module:
 //
-// The returned positions replace the default
-// `findStudCandidatesAlongWall` output. If no lower wall is found,
-// or no match within tolerance, the caller falls back to the default.
+//   "For an upper wall, what stud positions should it use so its
+//    framing aligns with whatever sits below it?"
 //
-// "Plan footprint match" tolerates small offsets in `start`/`end`
-// (default 100 mm) because users often re-draw walls on a new level
-// with mouse precision rather than copying coordinates exactly — and
-// Pascal does not yet have a "stack wall on level above" convenience.
+// **Collinear partial overlap.** Pascal often splits a perimeter wall
+// at every interior-wall junction, so a single upper wall (`(-6,-5.5)
+// → (-6, 0)`) sits above two or more lower walls (`(-6,-5.5)→(-6,-3.5)`
+// plus `(-6,-3.5)→(-6, 0)`). We walk every wall in the level below,
+// keep the ones lying on the same plan line as the upper wall (within
+// `STACKED_FOOTPRINT_TOLERANCE_MM` perpendicular distance), compute
+// each one's chord + field stud positions in world space, and project
+// those into the upper wall's local coordinate frame. Positions outside
+// the upper wall's range, or coinciding with its chord endpoints
+// (handled separately by the framing pass), are dropped.
+//
+// If no lower wall is collinear, the function returns `null` and the
+// caller falls back to the default `findStudCandidatesAlongWall`.
 
 import type { SceneLike } from './scene-walk'
 import { levelOf } from './scene-walk'
@@ -25,10 +31,11 @@ import { wallLengthFromPascalWall } from './wall-frame'
 const M_TO_MM = 1000
 
 /**
- * Maximum allowed offset (mm) between two walls' start/end coordinates
- * for them to be considered "stacked". 100 mm is generous enough to
- * catch a single snap-unit miss but tight enough to never match an
- * unrelated wall on the floor below.
+ * Maximum allowed perpendicular distance from the upper wall's plan
+ * line for a lower wall to count as "collinear" (and therefore a
+ * candidate for stud inheritance). 100 mm absorbs typical snap-grid
+ * drift between hand-drawn walls while staying narrow enough to reject
+ * unrelated walls on the floor below.
  */
 export const STACKED_FOOTPRINT_TOLERANCE_MM = 100
 
@@ -55,14 +62,6 @@ interface FramingLike {
   studSpacing_mm?: number | null
 }
 
-function closeEnough_m(
-  a: readonly [number, number],
-  b: readonly [number, number],
-  tolerance_m: number,
-): boolean {
-  return Math.abs(a[0] - b[0]) <= tolerance_m && Math.abs(a[1] - b[1]) <= tolerance_m
-}
-
 /** Find the level directly below the level that owns `wallId`. */
 function findLevelBelow(scene: SceneLike, wallId: string): LevelLike | null {
   const currentLevelId = levelOf(scene, wallId)
@@ -87,35 +86,6 @@ function findLevelBelow(scene: SceneLike, wallId: string): LevelLike | null {
   return null
 }
 
-/**
- * Find a wall in `level` whose plan footprint matches `wall` within
- * tolerance. Returns the first match (in case multiple, which is rare).
- * Matches in either direction — the lower wall's start may correspond
- * to the upper wall's start *or* its end.
- */
-function findMatchingWall(
-  scene: SceneLike,
-  level: LevelLike,
-  wall: PascalWallLike,
-): { wall: WallLike; reversed: boolean } | null {
-  if (!level.children) return null
-  const tolerance_m = STACKED_FOOTPRINT_TOLERANCE_MM / M_TO_MM
-  for (const childId of level.children) {
-    const w = scene.nodes[childId] as WallLike | undefined
-    if (w?.type !== 'wall') continue
-    if (!Array.isArray(w.start) || !Array.isArray(w.end)) continue
-    const forward =
-      closeEnough_m(w.start, wall.start, tolerance_m) &&
-      closeEnough_m(w.end, wall.end, tolerance_m)
-    const reversed =
-      closeEnough_m(w.start, wall.end, tolerance_m) &&
-      closeEnough_m(w.end, wall.start, tolerance_m)
-    if (forward) return { wall: w, reversed: false }
-    if (reversed) return { wall: w, reversed: true }
-  }
-  return null
-}
-
 /** Find the CFS wall framing whose `parentId` is the given wall id. */
 function findFramingForWall(
   scene: SceneLike,
@@ -129,15 +99,130 @@ function findFramingForWall(
 }
 
 /**
- * Compute stud positions of the wall directly below `currentWall`,
- * translated into `currentWall`'s wall-local coordinate system. Returns
- * `null` when no matching lower wall exists. The caller falls back to
+ * Project a 2-D level-plane point onto the wall's infinite line.
+ * Returns the signed projection (`t_mm`) along the wall axis measured
+ * from `wall.start`, plus the signed perpendicular distance from the
+ * wall's line (`perp_mm`). All in mm.
+ */
+function projectOntoWallLine(
+  pt: readonly [number, number],
+  wall: PascalWallLike,
+): { t_mm: number; perp_mm: number } {
+  const dx_m = wall.end[0] - wall.start[0]
+  const dz_m = wall.end[1] - wall.start[1]
+  const length_m = Math.hypot(dx_m, dz_m)
+  if (length_m === 0) return { t_mm: 0, perp_mm: 0 }
+  const ux = dx_m / length_m
+  const uz = dz_m / length_m
+  const px = pt[0] - wall.start[0]
+  const pz = pt[1] - wall.start[1]
+  const t = px * ux + pz * uz
+  const perp = px * -uz + pz * ux
+  return { t_mm: t * M_TO_MM, perp_mm: perp * M_TO_MM }
+}
+
+/** Is `other` on the same plan line as `reference` (within tolerance) AND
+ *  do their projections overlap on that line? */
+function isCollinearOverlapping(
+  reference: PascalWallLike,
+  other: PascalWallLike,
+  tolerance_mm: number,
+): boolean {
+  const startProj = projectOntoWallLine(other.start, reference)
+  const endProj = projectOntoWallLine(other.end, reference)
+  if (Math.abs(startProj.perp_mm) > tolerance_mm) return false
+  if (Math.abs(endProj.perp_mm) > tolerance_mm) return false
+  const refLength_mm = wallLengthFromPascalWall(reference)
+  const minT = Math.min(startProj.t_mm, endProj.t_mm)
+  const maxT = Math.max(startProj.t_mm, endProj.t_mm)
+  if (maxT < -tolerance_mm) return false
+  if (minT > refLength_mm + tolerance_mm) return false
+  return true
+}
+
+function findCollinearLowerWalls(
+  scene: SceneLike,
+  level: LevelLike,
+  currentWall: PascalWallLike,
+): WallLike[] {
+  if (!level.children) return []
+  const out: WallLike[] = []
+  for (const childId of level.children) {
+    const w = scene.nodes[childId] as WallLike | undefined
+    if (w?.type !== 'wall') continue
+    if (!Array.isArray(w.start) || !Array.isArray(w.end)) continue
+    if (
+      isCollinearOverlapping(
+        currentWall,
+        w as unknown as PascalWallLike,
+        STACKED_FOOTPRINT_TOLERANCE_MM,
+      )
+    ) {
+      out.push(w)
+    }
+  }
+  return out
+}
+
+/** Stud positions of one lower wall, translated into the upper wall's
+ *  local coordinate frame. Chord positions (0 and lower-length) are
+ *  included alongside field studs — they are stud locations the upper
+ *  wall should align with for load transfer. */
+function inheritFromLowerWall(
+  scene: SceneLike,
+  lower: WallLike,
+  currentWall: PascalWallLike,
+  defaultSpacing_mm: number,
+  currentLength_mm: number,
+): number[] {
+  const lowerFraming = findFramingForWall(scene, lower.id)
+  const lowerSpacing_mm = lowerFraming?.studSpacing_mm ?? defaultSpacing_mm
+  const lowerLength_mm = wallLengthFromPascalWall(
+    lower as unknown as PascalWallLike,
+  )
+  if (lowerLength_mm === 0) return []
+
+  const lowerLocalXs: number[] = [0, lowerLength_mm]
+  for (const x of findStudCandidatesAlongWall(lowerSpacing_mm, lowerLength_mm)) {
+    lowerLocalXs.push(x)
+  }
+
+  const dx_m = lower.end[0] - lower.start[0]
+  const dz_m = lower.end[1] - lower.start[1]
+  const lowerLength_m = Math.hypot(dx_m, dz_m)
+  if (lowerLength_m === 0) return []
+  const ux = dx_m / lowerLength_m
+  const uz = dz_m / lowerLength_m
+
+  const out: number[] = []
+  for (const lx of lowerLocalXs) {
+    const worldX_m = lower.start[0] + (lx / M_TO_MM) * ux
+    const worldZ_m = lower.start[1] + (lx / M_TO_MM) * uz
+    const proj = projectOntoWallLine([worldX_m, worldZ_m], currentWall)
+    if (Math.abs(proj.perp_mm) > STACKED_FOOTPRINT_TOLERANCE_MM) continue
+    // Drop positions at or near the upper wall's chord endpoints — those
+    // are emitted as chord studs by the upper wall itself. The dead-zone
+    // width is the same `STACKED_FOOTPRINT_TOLERANCE_MM` we use elsewhere,
+    // so a lower-wall chord that lands within tolerance of the upper's
+    // start (or end) is not duplicated as a stray field stud right next
+    // to the upper's chord. T-junction positions in the interior remain
+    // (e.g., upper-local 2000 mm for a wall sitting above two stacked
+    // lower walls that share an endpoint).
+    if (proj.t_mm < STACKED_FOOTPRINT_TOLERANCE_MM) continue
+    if (proj.t_mm > currentLength_mm - STACKED_FOOTPRINT_TOLERANCE_MM) continue
+    // Round to nearest mm — the projection math accumulates float drift
+    // (e.g., 3.65 - 0.05 ≠ 3.6 in IEEE 754) that would otherwise show
+    // up as 1200.0000000000002 instead of 1200.
+    out.push(Math.round(proj.t_mm))
+  }
+  return out
+}
+
+/**
+ * Field-stud positions for the upper wall, inherited from every
+ * collinear wall on the level below. Returns `null` when there is no
+ * level below or no collinear lower wall — the caller falls back to
  * the default `findStudCandidatesAlongWall` in that case.
- *
- * `defaultSpacing_mm` is used when the lower wall has no framing yet
- * (rare but possible during scene construction). When the lower wall
- * has a framing, its own `studSpacing_mm` is used so any wall-level
- * override propagates up the stack.
  */
 export function getInheritedStudPositions_mm(
   scene: SceneLike,
@@ -147,52 +232,32 @@ export function getInheritedStudPositions_mm(
   const lowerLevel = findLevelBelow(scene, currentWall.id)
   if (!lowerLevel) return null
 
-  const match = findMatchingWall(scene, lowerLevel, currentWall)
-  if (!match) return null
-
-  const lower = match.wall
-  const lowerFraming = findFramingForWall(scene, lower.id)
-  const lowerSpacing_mm = lowerFraming?.studSpacing_mm ?? defaultSpacing_mm
-  const lowerLength_mm = wallLengthFromPascalWall(
-    lower as unknown as PascalWallLike,
-  )
-  if (lowerLength_mm === 0) return null
-
-  const lowerPositions = findStudCandidatesAlongWall(
-    lowerSpacing_mm,
-    lowerLength_mm,
-  )
+  const collinear = findCollinearLowerWalls(scene, lowerLevel, currentWall)
+  if (collinear.length === 0) return null
 
   const currentLength_mm = wallLengthFromPascalWall(currentWall)
   if (currentLength_mm === 0) return null
 
-  // Translate lower-wall-local positions into current-wall-local.
-  //
-  // For straight walls of the same direction, currentLocalX equals
-  // lowerLocalX + projection_along_current_axis_of(lowerStart - currentStart).
-  // When `reversed` is true, the lower wall's positions are measured
-  // from its end (which corresponds to current's start) — mirror them.
-  const cs = currentWall.start
-  const ce = currentWall.end
-  const dx_m = ce[0] - cs[0]
-  const dz_m = ce[1] - cs[1]
-  const length_m = Math.hypot(dx_m, dz_m)
-  if (length_m === 0) return null
-  const ux = dx_m / length_m
-  const uz = dz_m / length_m
+  const all: number[] = []
+  for (const lower of collinear) {
+    for (const x of inheritFromLowerWall(
+      scene,
+      lower,
+      currentWall,
+      defaultSpacing_mm,
+      currentLength_mm,
+    )) {
+      all.push(x)
+    }
+  }
+  if (all.length === 0) return null
 
-  const lowerAnchor = match.reversed ? lower.end : lower.start
-  const offsetAlong_mm =
-    ((lowerAnchor[0] - cs[0]) * ux + (lowerAnchor[1] - cs[1]) * uz) *
-    M_TO_MM
-
+  // Sort + dedupe within 1 mm (T-junction shared endpoints land at the
+  // same upper-local x from two lower walls).
+  all.sort((a, b) => a - b)
   const out: number[] = []
-  for (const lx of lowerPositions) {
-    const cx = lx + offsetAlong_mm
-    // Drop positions that fall outside the current wall, or so close to
-    // either end that they would collide with the chord stud.
-    if (cx <= 0 || cx >= currentLength_mm) continue
-    out.push(cx)
+  for (const x of all) {
+    if (out.length === 0 || x - out[out.length - 1]! > 1) out.push(x)
   }
   return out
 }

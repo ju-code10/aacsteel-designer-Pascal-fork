@@ -3,39 +3,58 @@ import {
   CHORD_ELEVATION_TOLERANCE_MM,
   CHORD_PLAN_TOLERANCE_MM,
   isCornerOwned,
+  wallDirection,
 } from '../corner-detect'
 
 const origin = { x_mm: 0, y_mm: 0, z_mm: 0 }
+const east = { x: 1, z: 0 } // wall running along +x
+const north = { x: 0, z: 1 } // wall running along +z (perpendicular to east)
+const westReversed = { x: -1, z: 0 } // east antiparallel — still "same axis"
 
-describe('corner-detect', () => {
+describe('isCornerOwned', () => {
   it('framing with no peers always owns its chord', () => {
-    expect(isCornerOwned('a', origin, [])).toBe(true)
+    expect(isCornerOwned('a', origin, east, [])).toBe(true)
   })
 
-  it('two framings sharing a corner: lexicographically smaller id wins', () => {
-    const peer = { framingId: 'b', position: origin }
-    expect(isCornerOwned('a', origin, [peer])).toBe(true)
+  it('two collinear walls sharing an endpoint: smaller id wins', () => {
+    const peer = { framingId: 'b', position: origin, direction: east }
+    expect(isCornerOwned('a', origin, east, [peer])).toBe(true)
     expect(
-      isCornerOwned('b', origin, [{ framingId: 'a', position: origin }]),
+      isCornerOwned('b', origin, east, [
+        { framingId: 'a', position: origin, direction: east },
+      ]),
     ).toBe(false)
+  })
+
+  it('perpendicular walls at an L-corner each keep their own chord (doubled)', () => {
+    // east-running wall and north-running wall meeting at origin.
+    // Neither should lose its chord — that is the doubled-chord configuration.
+    const peer = { framingId: 'a', position: origin, direction: north }
+    expect(isCornerOwned('z', origin, east, [peer])).toBe(true)
+  })
+
+  it('antiparallel walls (drawn in opposite directions) still merge', () => {
+    // Same physical wall axis, drawn east vs. west. Should merge.
+    const peer = { framingId: 'a', position: origin, direction: westReversed }
+    expect(isCornerOwned('z', origin, east, [peer])).toBe(false)
   })
 
   it('peer at a different plan position does not affect ownership', () => {
     const peer = {
       framingId: 'a',
       position: { x_mm: 5000, y_mm: 0, z_mm: 0 },
+      direction: east,
     }
-    expect(isCornerOwned('z', origin, [peer])).toBe(true)
+    expect(isCornerOwned('z', origin, east, [peer])).toBe(true)
   })
 
-  it('peers within the plan tolerance count as the same corner', () => {
-    // 100 mm tolerance — a peer 50 mm off in plan still coincides, so the
-    // smaller id wins and the larger id loses.
+  it('peers within plan tolerance and same direction merge', () => {
     const peer = {
       framingId: 'a',
       position: { x_mm: 50, y_mm: 0, z_mm: 0 },
+      direction: east,
     }
-    expect(isCornerOwned('z', origin, [peer])).toBe(false)
+    expect(isCornerOwned('z', origin, east, [peer])).toBe(false)
   })
 
   it('peers just past the plan tolerance are NOT the same corner', () => {
@@ -46,24 +65,21 @@ describe('corner-detect', () => {
         y_mm: 0,
         z_mm: 0,
       },
+      direction: east,
     }
-    expect(isCornerOwned('z', origin, [peer])).toBe(true)
+    expect(isCornerOwned('z', origin, east, [peer])).toBe(true)
   })
 
   it('peers on a different LEVEL (different y) do not steal corner ownership', () => {
-    // Two walls stacked on different levels at the same plan position.
-    // Per the level-elevation memory-note carry-forward, this previously
-    // false-merged in 2-D corner detection; now y separates them.
     const peerOnLevelAbove = {
       framingId: 'a',
       position: { x_mm: 0, y_mm: 2700, z_mm: 0 },
+      direction: east,
     }
-    expect(isCornerOwned('z', origin, [peerOnLevelAbove])).toBe(true)
+    expect(isCornerOwned('z', origin, east, [peerOnLevelAbove])).toBe(true)
   })
 
   it('y-axis match still requires the elevation tolerance to hold', () => {
-    // Walls "on the same level" — y differs by less than 1 mm — still
-    // coincide and the smaller-id rule applies.
     const peer = {
       framingId: 'a',
       position: {
@@ -71,21 +87,48 @@ describe('corner-detect', () => {
         y_mm: CHORD_ELEVATION_TOLERANCE_MM,
         z_mm: 0,
       },
+      direction: east,
     }
-    expect(isCornerOwned('z', origin, [peer])).toBe(false)
+    expect(isCornerOwned('z', origin, east, [peer])).toBe(false)
   })
 
-  it('three-way intersection picks the smallest of the three', () => {
-    const peers = [
-      { framingId: 'b', position: origin },
-      { framingId: 'c', position: origin },
+  it('T-junction: parallel split-walls merge, perpendicular wall stays separate', () => {
+    // Two collinear stem walls meet at the T point, plus a perpendicular cap.
+    // Only the smaller-id stem wins; the cap keeps its own chord.
+    const stemA = { framingId: 'a', position: origin, direction: north }
+    const stemB = { framingId: 'b', position: origin, direction: north }
+    // Cap perpendicular to the stems — keeps its own chord.
+    expect(isCornerOwned('cap', origin, east, [stemA, stemB])).toBe(true)
+    // Stem b loses to stem a (smaller id).
+    expect(isCornerOwned('b', origin, north, [stemA])).toBe(false)
+  })
+
+  it('three-way perpendicular intersection: each direction independent', () => {
+    // The cap (east) keeps its chord regardless of stems (north).
+    const stems = [
+      { framingId: 'a', position: origin, direction: north },
+      { framingId: 'b', position: origin, direction: north },
     ]
-    expect(isCornerOwned('a', origin, peers)).toBe(true)
-    expect(
-      isCornerOwned('b', origin, [
-        { framingId: 'a', position: origin },
-        { framingId: 'c', position: origin },
-      ]),
-    ).toBe(false)
+    expect(isCornerOwned('z-cap', origin, east, stems)).toBe(true)
+  })
+})
+
+describe('wallDirection', () => {
+  it('returns unit vector from start to end in (x, z)', () => {
+    const d = wallDirection({ start: [0, 0], end: [3, 0] })
+    expect(d.x).toBeCloseTo(1)
+    expect(d.z).toBeCloseTo(0)
+  })
+
+  it('handles diagonal walls', () => {
+    const d = wallDirection({ start: [0, 0], end: [3, 4] })
+    expect(d.x).toBeCloseTo(0.6)
+    expect(d.z).toBeCloseTo(0.8)
+  })
+
+  it('returns a default unit vector for zero-length walls', () => {
+    const d = wallDirection({ start: [1, 1], end: [1, 1] })
+    expect(d.x).toBe(1)
+    expect(d.z).toBe(0)
   })
 })

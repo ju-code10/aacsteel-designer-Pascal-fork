@@ -5,231 +5,226 @@ import { getInheritedStudPositions_mm } from '../stacked-walls'
 
 const DEFAULT_SPACING_MM = 600
 
-/**
- * Build a two-level scene: level 0 has wall `w0` (3.6 m, framed with
- * 600 mm spacing), level 1 has wall `w1` whose start/end the caller
- * chooses. This is the canonical multi-story test fixture.
- */
-function twoLevelScene(opts: {
-  w0Start: [number, number]
-  w0End: [number, number]
-  w1Start: [number, number]
-  w1End: [number, number]
-  w0FramingSpacing_mm?: number
-  includeW0Framing?: boolean
-}): SceneLike {
-  const includeFraming = opts.includeW0Framing ?? true
-  return {
-    nodes: {
-      bldg: { type: 'building', id: 'bldg', parentId: null, children: ['lv0', 'lv1'] },
-      lv0: {
-        type: 'level',
-        id: 'lv0',
-        parentId: 'bldg',
-        level: 0,
-        children: ['w0'],
-      },
-      w0: {
-        type: 'wall',
-        id: 'w0',
-        parentId: 'lv0',
-        start: opts.w0Start,
-        end: opts.w0End,
-        height: 2.7,
-        children: includeFraming ? ['f0'] : [],
-      },
-      ...(includeFraming
-        ? {
-            f0: {
-              type: 'cfs_wall_framing',
-              id: 'f0',
-              parentId: 'w0',
-              studSpacing_mm: opts.w0FramingSpacing_mm ?? null,
-            },
-          }
-        : {}),
-      lv1: {
-        type: 'level',
-        id: 'lv1',
-        parentId: 'bldg',
-        level: 1,
-        children: ['w1'],
-      },
-      w1: {
-        type: 'wall',
-        id: 'w1',
-        parentId: 'lv1',
-        start: opts.w1Start,
-        end: opts.w1End,
-        height: 2.7,
-      },
-    },
-  }
+interface SceneOpts {
+  /** Lower-level walls, keyed by id. */
+  lower: Record<
+    string,
+    { start: [number, number]; end: [number, number]; spacing_mm?: number }
+  >
+  /** Upper wall's start/end. */
+  upperStart: [number, number]
+  upperEnd: [number, number]
 }
 
-function wall(id: string, start: [number, number], end: [number, number]): PascalWallLike {
-  return { id, start, end }
+function makeScene(opts: SceneOpts): SceneLike {
+  const lowerWallIds = Object.keys(opts.lower)
+  const nodes: Record<string, unknown> = {
+    bldg: {
+      type: 'building',
+      id: 'bldg',
+      parentId: null,
+      children: ['lv0', 'lv1'],
+    },
+    lv0: {
+      type: 'level',
+      id: 'lv0',
+      parentId: 'bldg',
+      level: 0,
+      children: lowerWallIds,
+    },
+    lv1: {
+      type: 'level',
+      id: 'lv1',
+      parentId: 'bldg',
+      level: 1,
+      children: ['w1'],
+    },
+    w1: {
+      type: 'wall',
+      id: 'w1',
+      parentId: 'lv1',
+      start: opts.upperStart,
+      end: opts.upperEnd,
+      height: 2.7,
+    },
+  }
+  for (const [id, w] of Object.entries(opts.lower)) {
+    nodes[id] = {
+      type: 'wall',
+      id,
+      parentId: 'lv0',
+      start: w.start,
+      end: w.end,
+      height: 2.7,
+      children: [`f_${id}`],
+    }
+    nodes[`f_${id}`] = {
+      type: 'cfs_wall_framing',
+      id: `f_${id}`,
+      parentId: id,
+      studSpacing_mm: w.spacing_mm ?? null,
+    }
+  }
+  return { nodes }
+}
+
+function upper(start: [number, number], end: [number, number]): PascalWallLike {
+  return { id: 'w1', start, end }
 }
 
 describe('getInheritedStudPositions_mm', () => {
-  it('returns null on a ground-level wall (no level below)', () => {
-    const scene = twoLevelScene({
-      w0Start: [0, 0],
-      w0End: [3.6, 0],
-      w1Start: [0, 0],
-      w1End: [3.6, 0],
-    })
-    const result = getInheritedStudPositions_mm(
-      scene,
-      wall('w0', [0, 0], [3.6, 0]),
-      DEFAULT_SPACING_MM,
-    )
-    expect(result).toBeNull()
+  it('returns null when the wall has no level below (ground floor)', () => {
+    const scene: SceneLike = {
+      nodes: {
+        lv: {
+          type: 'level',
+          id: 'lv',
+          parentId: 'bldg',
+          level: 0,
+          children: ['w'],
+        },
+        bldg: { type: 'building', id: 'bldg', children: ['lv'] },
+        w: {
+          type: 'wall',
+          id: 'w',
+          parentId: 'lv',
+          start: [0, 0],
+          end: [3.6, 0],
+        },
+      },
+    }
+    expect(
+      getInheritedStudPositions_mm(scene, upper([0, 0], [3.6, 0]), DEFAULT_SPACING_MM),
+    ).toBeNull()
   })
 
-  it('inherits the lower wall\'s stud positions when start/end match exactly', () => {
-    const scene = twoLevelScene({
-      w0Start: [0, 0],
-      w0End: [3.6, 0],
-      w1Start: [0, 0],
-      w1End: [3.6, 0],
+  it('returns null when no lower wall is collinear with the upper wall', () => {
+    // Upper wall along x. Only lower wall is along z — perpendicular, not collinear.
+    const scene = makeScene({
+      lower: { wA: { start: [5, 0], end: [5, 5] } },
+      upperStart: [0, 0],
+      upperEnd: [3.6, 0],
+    })
+    expect(
+      getInheritedStudPositions_mm(scene, upper([0, 0], [3.6, 0]), DEFAULT_SPACING_MM),
+    ).toBeNull()
+  })
+
+  it('inherits a single lower wall\'s full stud positions when footprints match', () => {
+    // 3.6 m wall on both levels at the same coords. Lower's chord + field
+    // positions land on the upper wall, dropping the chord endpoints that
+    // the upper wall emits itself.
+    const scene = makeScene({
+      lower: { wA: { start: [0, 0], end: [3.6, 0] } },
+      upperStart: [0, 0],
+      upperEnd: [3.6, 0],
     })
     const result = getInheritedStudPositions_mm(
       scene,
-      wall('w1', [0, 0], [3.6, 0]),
+      upper([0, 0], [3.6, 0]),
       DEFAULT_SPACING_MM,
     )
-    // 3.6 m wall at 600 mm spacing: candidates at 600, 1200, 1800, 2400, 3000
-    // (3600 - 3000 = 600 > half=300, so last is kept)
+    // Lower 3.6m, 600 spacing → field studs 600, 1200, 1800, 2400, 3000.
+    // Chord ends (0 and 3600) are dropped because the upper wall emits its
+    // own chords at those positions.
     expect(result).toEqual([600, 1200, 1800, 2400, 3000])
   })
 
-  it('translates positions when upper wall is offset by 50 mm along the wall direction', () => {
-    // Lower wall: 3.6 m at x = 0..3.6. Upper wall: 3.6 m at x = 0.05..3.65.
-    // Lower studs are at world x = 0.6, 1.2, 1.8, 2.4, 3.0.
-    // In upper wall's local frame those become x = 0.55, 1.15, 1.75, 2.35, 2.95.
-    const scene = twoLevelScene({
-      w0Start: [0, 0],
-      w0End: [3.6, 0],
-      w1Start: [0.05, 0],
-      w1End: [3.65, 0],
+  it('combines positions from TWO collinear lower walls that together cover the upper wall', () => {
+    // Real scenario from the user's scene: the level-0 west side is split
+    // at z=-3.5 by an interior cross-wall, so a single 5.5 m upper wall sits
+    // above two lower walls (2 m + 3.5 m). Inherited positions should cover
+    // every stud across both lower walls — chord ends INSIDE the upper wall
+    // (the shared T-junction at 2 m) PLUS each lower wall's field studs.
+    const scene = makeScene({
+      lower: {
+        wA: { start: [-6, -5.5], end: [-6, -3.5] },
+        wB: { start: [-6, -3.5], end: [-6, 0] },
+      },
+      upperStart: [-6, -5.5],
+      upperEnd: [-6, 0],
     })
     const result = getInheritedStudPositions_mm(
       scene,
-      wall('w1', [0.05, 0], [3.65, 0]),
+      upper([-6, -5.5], [-6, 0]),
       DEFAULT_SPACING_MM,
     )
-    expect(result).toEqual([550, 1150, 1750, 2350, 2950])
+    // Lower wA (2.0 m): chord ends 0/2000, field 600/1200 (the candidate
+    // at 1800 is within half-spacing of the wA end, so the omit-last rule
+    // drops it). In upper-local x (upper start also at z=-5.5): 0 dropped
+    // (upper chord), 600, 1200, 2000.
+    // Lower wB (3.5 m): chord ends 0/3500 → upper-local 2000 and 5500;
+    // field 600/1200/1800/2400/3000 → upper-local 2600/3200/3800/4400/5000.
+    // Upper-local 5500 dropped (upper end chord).
+    // Dedupe: 2000 appears in both — kept once.
+    expect(result).toEqual([
+      600, 1200, 2000, 2600, 3200, 3800, 4400, 5000,
+    ])
   })
 
-  it('returns null when the upper wall is too far from any lower wall (>100 mm)', () => {
-    const scene = twoLevelScene({
-      w0Start: [0, 0],
-      w0End: [3.6, 0],
-      w1Start: [5.0, 0], // 5 m away — clearly a different wall
-      w1End: [8.6, 0],
+  it('translates positions when the lower wall is offset within tolerance', () => {
+    // Upper at x=0..3.6. Lower at x=0.05..3.65 (50 mm drift). Both on z=0.
+    // Lower studs at world x = 0.65, 1.25, 1.85, 2.45, 3.05. In upper-local
+    // (upper start at 0), these are 650, 1250, 1850, 2450, 3050.
+    const scene = makeScene({
+      lower: { wA: { start: [0.05, 0], end: [3.65, 0] } },
+      upperStart: [0, 0],
+      upperEnd: [3.6, 0],
     })
     const result = getInheritedStudPositions_mm(
       scene,
-      wall('w1', [5.0, 0], [8.6, 0]),
+      upper([0, 0], [3.6, 0]),
       DEFAULT_SPACING_MM,
     )
-    expect(result).toBeNull()
+    expect(result).toEqual([650, 1250, 1850, 2450, 3050])
   })
 
-  it('handles a reversed lower wall (start↔end swapped)', () => {
-    // Lower wall drawn right-to-left (3.6→0), upper left-to-right (0→3.6).
-    // Same physical footprint. Studs should still align.
-    const scene = twoLevelScene({
-      w0Start: [3.6, 0],
-      w0End: [0, 0],
-      w1Start: [0, 0],
-      w1End: [3.6, 0],
+  it('handles a reversed lower wall (drawn end-to-start)', () => {
+    // Lower drawn from (3.6, 0) back to (0, 0). Upper drawn (0, 0)→(3.6, 0).
+    // Lower's stud positions are measured from its start (3.6, 0), so its
+    // 600 mm field stud is at world x = 3.0. In upper-local that's x = 3000.
+    const scene = makeScene({
+      lower: { wA: { start: [3.6, 0], end: [0, 0] } },
+      upperStart: [0, 0],
+      upperEnd: [3.6, 0],
     })
     const result = getInheritedStudPositions_mm(
       scene,
-      wall('w1', [0, 0], [3.6, 0]),
+      upper([0, 0], [3.6, 0]),
       DEFAULT_SPACING_MM,
     )
-    // Lower's stud positions (measured from its start at world x=3.6):
-    // 600, 1200, 1800, 2400, 3000 mm — i.e., world x = 3.0, 2.4, 1.8, 1.2, 0.6.
-    // In upper wall's local frame those land at the same world x values:
-    // 600, 1200, 1800, 2400, 3000 (just collected in reverse order).
-    expect(result?.slice().sort((a, b) => a - b)).toEqual([600, 1200, 1800, 2400, 3000])
+    expect(result).toEqual([600, 1200, 1800, 2400, 3000])
   })
 
-  it('uses the lower wall\'s framing spacing when set', () => {
-    // Lower wall has explicit 400 mm spacing. Upper should inherit that grid.
-    const scene = twoLevelScene({
-      w0Start: [0, 0],
-      w0End: [3.6, 0],
-      w1Start: [0, 0],
-      w1End: [3.6, 0],
-      w0FramingSpacing_mm: 400,
+  it('inherits the lower wall\'s framing spacing if set', () => {
+    // Lower has explicit 400 mm spacing. Upper inherits that grid.
+    const scene = makeScene({
+      lower: { wA: { start: [0, 0], end: [3.6, 0], spacing_mm: 400 } },
+      upperStart: [0, 0],
+      upperEnd: [3.6, 0],
     })
     const result = getInheritedStudPositions_mm(
       scene,
-      wall('w1', [0, 0], [3.6, 0]),
-      DEFAULT_SPACING_MM, // 600 — but we expect 400 since lower overrides
+      upper([0, 0], [3.6, 0]),
+      DEFAULT_SPACING_MM, // 600 — overridden by lower's 400
     )
-    // 3.6 m at 400: candidates 400, 800, ..., 3200; 3600-3200=400 > half=200,
-    // so 3200 is kept. Total 8 studs.
+    // 3.6m at 400 spacing → 400, 800, 1200, 1600, 2000, 2400, 2800, 3200.
     expect(result).toEqual([400, 800, 1200, 1600, 2000, 2400, 2800, 3200])
   })
 
-  it('falls back to defaultSpacing when the lower wall has no framing', () => {
-    const scene = twoLevelScene({
-      w0Start: [0, 0],
-      w0End: [3.6, 0],
-      w1Start: [0, 0],
-      w1End: [3.6, 0],
-      includeW0Framing: false,
+  it('returns null when the upper wall is more than the tolerance off the lower wall\'s line', () => {
+    // Upper offset perpendicular by 200 mm (> 100 mm tolerance) — different wall, not stacked.
+    const scene = makeScene({
+      lower: { wA: { start: [0, 0], end: [3.6, 0] } },
+      upperStart: [0, 0.2],
+      upperEnd: [3.6, 0.2],
     })
-    const result = getInheritedStudPositions_mm(
-      scene,
-      wall('w1', [0, 0], [3.6, 0]),
-      400,
-    )
-    expect(result).toEqual([400, 800, 1200, 1600, 2000, 2400, 2800, 3200])
-  })
-
-  it('returns null when wall lengths differ enough that neither end matches', () => {
-    // Upper wall 2.0 m starting at the same point as a 3.6 m lower wall:
-    // start matches but end is 1.6 m off — outside the 100 mm tolerance.
-    // We treat that as "not the same wall" and fall back to default
-    // per-wall computation rather than inherit a mismatched grid.
-    const scene = twoLevelScene({
-      w0Start: [0, 0],
-      w0End: [3.6, 0],
-      w1Start: [0, 0],
-      w1End: [2.0, 0],
-    })
-    const result = getInheritedStudPositions_mm(
-      scene,
-      wall('w1', [0, 0], [2.0, 0]),
-      DEFAULT_SPACING_MM,
-    )
-    expect(result).toBeNull()
-  })
-
-  it('inherits even when both endpoints are off by up to the 100 mm tolerance', () => {
-    // Both ends drift by ~80 mm — within the 100 mm allowance — and the
-    // function still treats them as stacked. The upper wall's studs are
-    // translated by the start-offset so they land directly above the
-    // lower wall's studs in world space.
-    const scene = twoLevelScene({
-      w0Start: [0, 0],
-      w0End: [3.6, 0],
-      w1Start: [0.08, 0],
-      w1End: [3.68, 0],
-    })
-    const result = getInheritedStudPositions_mm(
-      scene,
-      wall('w1', [0.08, 0], [3.68, 0]),
-      DEFAULT_SPACING_MM,
-    )
-    // Lower studs at world 600, 1200, 1800, 2400, 3000.
-    // Upper wall local x = world x - 80. Studs at 520, 1120, 1720, 2320, 2920.
-    expect(result).toEqual([520, 1120, 1720, 2320, 2920])
+    expect(
+      getInheritedStudPositions_mm(
+        scene,
+        upper([0, 0.2], [3.6, 0.2]),
+        DEFAULT_SPACING_MM,
+      ),
+    ).toBeNull()
   })
 })

@@ -1,70 +1,60 @@
-// Corner-stud ownership: when two CFSWallFramings' chord candidates
-// land at the same world position, only ONE of them emits a chord
-// stud at that position (the smallest-id wins per §5.1 step 3).
+// Corner-stud ownership.
 //
-// The match is 3D (x, z plan + y elevation) so two walls stacked on
-// different levels at the same plan position are correctly treated
-// as INDEPENDENT (each emits its own chord) rather than collapsing
-// into one. Plan tolerance is wide (100 mm) to absorb a single
-// snap-grid miss when the user draws an L-corner; elevation tolerance
-// is tight (1 mm) because levels are always cleanly separated.
+// When two CFSWallFramings' chord candidates land at the same world
+// position AND their walls run in (anti)parallel directions, the chord
+// is shared: only the smallest-id framing emits at that position
+// (§5.1 step 3). Perpendicular walls meeting at an L-corner each keep
+// their own chord — that is the **doubled-chord** configuration in
+// §1.4, "the chord stud may be shared with the adjacent wall, doubled
+// up (back-to-back chords), or boxed."
+//
+// The match is 3D + directional:
+//   - plan match within `CHORD_PLAN_TOLERANCE_MM`  (drift-tolerant)
+//   - elevation match within `CHORD_ELEVATION_TOLERANCE_MM`  (level-tight)
+//   - dot product of wall direction vectors |·| >= `CHORD_PARALLEL_DOT`
+//     (cos 26° — walls within ~26° of the same axis count as parallel).
 
 import type { CFSPoint3D } from '../schema/primitives'
 
-/**
- * Maximum allowed plan offset (mm) between two chord candidates for
- * them to be considered the same corner. Wide enough to catch a
- * single snap-grid miss; tight enough not to match unrelated walls.
- */
 export const CHORD_PLAN_TOLERANCE_MM = 100
-
-/**
- * Elevation tolerance (mm). Stays tight because level base elevations
- * are always cleanly separated by the level's stack height.
- */
 export const CHORD_ELEVATION_TOLERANCE_MM = 1
+export const CHORD_PARALLEL_DOT = 0.9
 
 export interface ChordCandidate {
   framingId: string
   /** World-space position of the chord stud's base. */
   position: { x_mm: number; y_mm: number; z_mm: number }
+  /** Wall direction unit vector in plan (x, z). Used to distinguish
+   *  perpendicular L-corners (doubled chord) from collinear chord
+   *  coincidences (merge to single chord). */
+  direction: { x: number; z: number }
 }
 
-/**
- * Decide whether this framing should emit a chord stud at the given
- * world position. The first-created framing wins shared corners
- * (§5.1 step 3): a deterministic ordering by `framingId` gives stable
- * ownership across reloads.
- *
- * `peers` is every other CFSWallFraming in the scene with their
- * currently desired chord positions. Returns true iff this framing
- * has the smallest id among all framings whose chord candidates
- * coincide with `position`.
- */
 export function isCornerOwned(
   ownFramingId: string,
   position: { x_mm: number; y_mm: number; z_mm: number },
+  direction: { x: number; z: number },
   peers: ChordCandidate[],
 ): boolean {
+  const me: ChordCandidate = {
+    framingId: ownFramingId,
+    position,
+    direction,
+  }
   const ownerCandidates = [
     ownFramingId,
-    ...peers
-      .filter((p) => coincides(p.position, position))
-      .map((p) => p.framingId),
+    ...peers.filter((p) => coincides(p, me)).map((p) => p.framingId),
   ]
   ownerCandidates.sort()
   return ownerCandidates[0] === ownFramingId
 }
 
-function coincides(
-  a: { x_mm: number; y_mm: number; z_mm: number },
-  b: { x_mm: number; y_mm: number; z_mm: number },
-): boolean {
-  return (
-    Math.abs(a.x_mm - b.x_mm) <= CHORD_PLAN_TOLERANCE_MM &&
-    Math.abs(a.z_mm - b.z_mm) <= CHORD_PLAN_TOLERANCE_MM &&
-    Math.abs(a.y_mm - b.y_mm) <= CHORD_ELEVATION_TOLERANCE_MM
-  )
+function coincides(a: ChordCandidate, b: ChordCandidate): boolean {
+  if (Math.abs(a.position.x_mm - b.position.x_mm) > CHORD_PLAN_TOLERANCE_MM) return false
+  if (Math.abs(a.position.z_mm - b.position.z_mm) > CHORD_PLAN_TOLERANCE_MM) return false
+  if (Math.abs(a.position.y_mm - b.position.y_mm) > CHORD_ELEVATION_TOLERANCE_MM) return false
+  const dot = a.direction.x * b.direction.x + a.direction.z * b.direction.z
+  return Math.abs(dot) >= CHORD_PARALLEL_DOT
 }
 
 export function chordPositionFromWorld(p: CFSPoint3D): {
@@ -73,4 +63,15 @@ export function chordPositionFromWorld(p: CFSPoint3D): {
   z_mm: number
 } {
   return { x_mm: p.x_mm, y_mm: p.y_mm, z_mm: p.z_mm }
+}
+
+/** Plan-direction unit vector for a wall, from `start` to `end`. */
+export function wallDirection(
+  wall: { start: readonly [number, number]; end: readonly [number, number] },
+): { x: number; z: number } {
+  const dx = wall.end[0] - wall.start[0]
+  const dz = wall.end[1] - wall.start[1]
+  const len = Math.hypot(dx, dz)
+  if (len === 0) return { x: 1, z: 0 }
+  return { x: dx / len, z: dz / len }
 }
