@@ -1,0 +1,51 @@
+# AACSteel-Designer — host this app inside Docker on the DGX Spark
+# (or any aarch64 / x86_64 Linux host with Docker installed).
+#
+# Quickstart on the Spark:
+#   git pull
+#   docker compose up -d --build
+#   docker compose logs -f editor
+#
+# From Windows, tunnel the host port through SSH:
+#   ssh -L 43002:localhost:43002 atomicjr@<spark-host>
+# Then open http://localhost:43002 in your browser.
+#
+# Host port 43002 was chosen to dodge every busy port we saw on the
+# Spark (3000, 3002, 5678, 8081, 8443, 9000, 11000, 11434, 11435).
+# Change `43002:3002` if you need a different host port.
+
+services:
+  editor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aacsteel-designer:dev
+    container_name: aacsteel-editor
+
+    ports:
+      # host:container — change the LEFT side to remap externally.
+      - "43002:3002"
+
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      # Next.js HMR works behind a reverse proxy / tunnel because the
+      # browser connects via the SSH-tunneled localhost:43002, which
+      # round-trips back to the container on the same port.
+
+    # Restart automatically if the container dies (e.g. on Spark
+    # reboot). Disable with `docker compose stop`.
+    restart: unless-stopped
+
+    # Healthcheck uses Bun's built-in fetch so we don't need wget/curl
+    # in the slim image. Marks healthy once Next.js has compiled.
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://127.0.0.1:3002').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
