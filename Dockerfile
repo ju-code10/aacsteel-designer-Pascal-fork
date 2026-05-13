@@ -4,9 +4,11 @@
 #
 # Base: oven/bun:1.3.0-slim (Debian slim, multi-arch — works on x86_64 +
 # aarch64; tested on DGX Spark). Installs every workspace dep and pre-
-# builds packages/cfs once so the editor can import @pascal-app/cfs at
-# startup. The editor then runs `next dev` bound to 0.0.0.0:3002 inside
-# the container so Docker's port mapping reaches it.
+# builds every workspace package via Turbo so the editor can resolve
+# `@pascal-app/core`, `@pascal-app/viewer`, `@pascal-app/editor`, and
+# `@pascal-app/cfs` from their `dist/` directories at startup. The
+# editor then runs `next dev` bound to 0.0.0.0:3002 inside the container
+# so Docker's port mapping reaches it.
 #
 # Why dev mode and not next build / next start?
 #  - Next.js production build re-checks the whole monorepo and is slow.
@@ -28,9 +30,13 @@ COPY . .
 # bun.lock authoritative.
 RUN bun install --frozen-lockfile
 
-# packages/cfs emits dist/ via `tsc --build`; the editor imports
-# `@pascal-app/cfs` from there.
-RUN bun run --filter @pascal-app/cfs build
+# Pre-build every workspace package. The editor imports `@pascal-app/core`,
+# `@pascal-app/viewer`, `@pascal-app/editor`, and `@pascal-app/cfs` from
+# their `dist/` directories (emitted by `tsc --build`). Without this step
+# Next.js's resolver throws `Module not found: Can't resolve
+# '@pascal-app/viewer'` and the whole compile fails. Turbo walks the
+# workspace dependency graph so packages build in the correct order.
+RUN bunx turbo run build --filter='./packages/*'
 
 ENV NODE_ENV=development
 ENV NEXT_TELEMETRY_DISABLED=1
