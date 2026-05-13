@@ -26,6 +26,8 @@ import {
 import { wallLevelElevation_mm } from '../lib/level-elevation'
 import type { SceneLike } from '../lib/scene-walk'
 import { makeSlabElevationFn } from '../lib/slab-elevation'
+import { getInheritedStudPositions_mm } from '../lib/stacked-walls'
+import { findStudCandidatesAlongWall } from '../lib/stud-candidates'
 import {
   computeOpeningLayout,
   fieldStudExcluded,
@@ -49,19 +51,6 @@ function generateUuid(): string {
   return `${hex(8)}-${hex(4)}-4${hex(3)}-a${hex(3)}-${hex(12)}`
 }
 
-function findStudCandidatesAlongWall(spacing_mm: number, length_mm: number): number[] {
-  const candidates: number[] = []
-  for (let x = spacing_mm; x < length_mm; x += spacing_mm) candidates.push(x)
-  if (candidates.length === 0) return candidates
-  const half = spacing_mm / 2
-  const last = candidates[candidates.length - 1] as number
-  // §1.4: omit last field stud when its distance to the wall end is at or
-  // below half the spacing — the chord stud at the wall end already covers
-  // that load. (Per FRM-04: distance == half spacing is also omitted.)
-  if (length_mm - last <= half) candidates.pop()
-  return candidates
-}
-
 function buildDesiredMembers(
   wall: PascalWallLike,
   framing: CFSWallFraming,
@@ -72,6 +61,11 @@ function buildDesiredMembers(
   ownsEndChord: boolean,
   openingLayout: OpeningLayoutResult,
   levelElevation_mm: number,
+  /** Field-stud positions inherited from the wall directly below, if any.
+   *  When non-null, these replace the default spacing-based computation
+   *  so studs on the upper wall sit directly above the lower wall's studs
+   *  (stack-load alignment per CFS detailing best practice). */
+  inheritedFieldStudPositions_mm: number[] | null,
 ): DesiredMember[] {
   const length_mm = wallLengthFromPascalWall(wall)
   const height_mm =
@@ -116,8 +110,12 @@ function buildDesiredMembers(
   }
 
   // Step 4 — field studs, minus those displaced by openings (§1.4
-  // stud-role coalescing).
-  for (const x of findStudCandidatesAlongWall(spacing_mm, length_mm)) {
+  // stud-role coalescing). When the wall sits above another wall with
+  // a matching plan footprint, inherit that wall's stud positions so
+  // axial load transfers straight down (stack-load alignment).
+  const fieldStudXs =
+    inheritedFieldStudPositions_mm ?? findStudCandidatesAlongWall(spacing_mm, length_mm)
+  for (const x of fieldStudXs) {
     if (fieldStudExcluded(x, openingLayout.fieldStudExclusionRanges)) continue
     desired.push({
       role: 'stud',
@@ -381,6 +379,15 @@ function runFramingPassInner(): FramingProcessResult[] {
     const thisWallSlab_mm = Math.max(0, slabFn(wallId))
     const elevation_mm = levelBase_mm + thisWallSlab_mm
 
+    // Stack-load alignment: if a wall directly below shares this wall's
+    // plan footprint (within 100 mm), inherit its field-stud positions
+    // so studs stack vertically across levels (CFS best practice).
+    const inheritedStudXs = getInheritedStudPositions_mm(
+      sceneLike,
+      wall,
+      settings.defaultStudSpacing_mm,
+    )
+
     const desiredRaw = buildDesiredMembers(
       wall,
       framing,
@@ -391,6 +398,7 @@ function runFramingPassInner(): FramingProcessResult[] {
       ownsEnd,
       openingLayout,
       elevation_mm,
+      inheritedStudXs,
     )
     const desired = materialiseDesired(framing, desiredRaw)
     const existing = childrenOfType<CFSMember>(sceneState.nodes, framingId, 'cfs_member')
