@@ -10,6 +10,7 @@ import {
   useCFS,
 } from '@pascal-app/cfs'
 import { useEffect } from 'react'
+import { useCFSWallClickForwarder } from '../lib/use-cfs-click-forwarder'
 import { useCFSShortcuts } from '../lib/use-cfs-shortcuts'
 import { applyWallVisibility, resetWallVisibilityCache } from '../lib/wall-visibility'
 import { CFSGeometrySystem } from '../systems/CFSGeometrySystem'
@@ -45,6 +46,12 @@ export function CFSRoot(): React.JSX.Element {
   // §7.6 — register tool shortcuts (T/W/H/Esc) only while in CFS mode so
   // Pascal's bindings remain unaffected in architectural mode.
   useCFSShortcuts(isCFSMode)
+  // wall-visibility.ts hides Pascal walls when CFS mode is on, which
+  // also blocks R3F from dispatching wall:click events on them. The
+  // forwarder raycasts the CFS framing group on every canvas click and
+  // synthesizes a Pascal wall:click on hit, so the Panel Break / Door /
+  // Window / Service Hole tools still work in 3D CFS mode.
+  useCFSWallClickForwarder(isCFSMode)
 
   useEffect(() => {
     if (hasLibrary) return
