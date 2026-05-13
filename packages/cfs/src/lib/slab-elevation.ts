@@ -26,6 +26,16 @@ const M_TO_MM = 1000
 export type SlabElevationForWallFn = (wallId: string) => number
 
 /**
+ * Bind the production slab source to a specific scene. Returns a
+ * `SlabElevationForWallFn` (1-arg, takes a wallId) suitable for
+ * `wallLevelElevation_mm` / `levelHeight_mm` / `levelElevation_mm`,
+ * which close over the scene once and then call by id repeatedly.
+ */
+export function makeSlabElevationFn(scene: SceneLike): SlabElevationForWallFn {
+  return (wallId) => slabElevationFromManager(scene, wallId)
+}
+
+/**
  * Production source of slab elevations: read from Pascal's
  * `spatialGridManager` for the given scene and convert m → mm.
  * Returns 0 when the wall is missing geometry or no slab overlaps it.

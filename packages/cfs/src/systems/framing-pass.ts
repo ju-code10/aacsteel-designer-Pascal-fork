@@ -25,7 +25,7 @@ import {
 } from '../lib/wall-frame'
 import { wallLevelElevation_mm } from '../lib/level-elevation'
 import type { SceneLike } from '../lib/scene-walk'
-import { slabElevationFromManager } from '../lib/slab-elevation'
+import { makeSlabElevationFn } from '../lib/slab-elevation'
 import {
   computeOpeningLayout,
   fieldStudExcluded,
@@ -376,15 +376,9 @@ function runFramingPassInner(): FramingProcessResult[] {
     // stack), then we add the *this* wall's slab on top.
     const wallId = (wall as PascalWallLike).id
     const sceneLike = sceneState as unknown as SceneLike
-    const levelBase_mm = wallLevelElevation_mm(
-      sceneLike,
-      wallId,
-      slabElevationFromManager,
-    )
-    const thisWallSlab_mm = Math.max(
-      0,
-      slabElevationFromManager(sceneLike, wallId),
-    )
+    const slabFn = makeSlabElevationFn(sceneLike)
+    const levelBase_mm = wallLevelElevation_mm(sceneLike, wallId, slabFn)
+    const thisWallSlab_mm = Math.max(0, slabFn(wallId))
     const elevation_mm = levelBase_mm + thisWallSlab_mm
 
     const desiredRaw = buildDesiredMembers(
