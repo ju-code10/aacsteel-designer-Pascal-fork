@@ -25,6 +25,7 @@ import {
 } from '../lib/wall-frame'
 import { wallLevelElevation_mm } from '../lib/level-elevation'
 import type { SceneLike } from '../lib/scene-walk'
+import { slabElevationFromManager } from '../lib/slab-elevation'
 import {
   computeOpeningLayout,
   fieldStudExcluded,
@@ -365,11 +366,26 @@ function runFramingPassInner(): FramingProcessResult[] {
     // §multi-story fix: lift this wall's framing y-coordinates by the
     // cumulative elevation of its parent level. Without this the upper-
     // level walls produce members at the ground floor (Slice 9 bug).
+    //
+    // Slab fix: Pascal also lifts each wall's mesh by the slab thickness
+    // beneath it (`wall-system.tsx` → `mesh.position.y = slabElevation`).
+    // Studs must follow that lift or they pierce the slab from below;
+    // upper levels must also include the slab in their cumulative stack.
+    // We pass `slabElevationFromManager` so both effects are accounted
+    // for — the level math reads slabs of *prior* levels (cumulative
+    // stack), then we add the *this* wall's slab on top.
     const wallId = (wall as PascalWallLike).id
-    const elevation_mm = wallLevelElevation_mm(
-      sceneState as unknown as SceneLike,
+    const sceneLike = sceneState as unknown as SceneLike
+    const levelBase_mm = wallLevelElevation_mm(
+      sceneLike,
       wallId,
+      slabElevationFromManager,
     )
+    const thisWallSlab_mm = Math.max(
+      0,
+      slabElevationFromManager(sceneLike, wallId),
+    )
+    const elevation_mm = levelBase_mm + thisWallSlab_mm
 
     const desiredRaw = buildDesiredMembers(
       wall,

@@ -116,3 +116,99 @@ describe('wallLevelElevation_mm', () => {
     expect(wallLevelElevation_mm(scene, 'rogue')).toBe(0)
   })
 })
+
+// ── Slab-aware variants ─────────────────────────────────────────────────────
+//
+// Pascal positions walls at `mesh.position.y = slabElevation` and counts
+// the slab thickness toward each level's top. The CFS math has to match
+// or upper-level framing lands lower than Pascal's upper-level walls and
+// slabs pass through stud bottoms on the ground floor.
+
+describe('levelHeight_mm with slab elevation', () => {
+  it('adds slab thickness to a wall\'s contribution', () => {
+    const scene: SceneLike = {
+      nodes: {
+        lv: {
+          type: 'level',
+          id: 'lv',
+          parentId: 'b',
+          level: 0,
+          children: ['w'],
+        },
+        w: {
+          type: 'wall',
+          id: 'w',
+          parentId: 'lv',
+          start: [0, 0],
+          end: [3.6, 0],
+          height: 2.7,
+        },
+      },
+    }
+    // 150 mm slab + 2700 mm wall → 2850 mm level top.
+    expect(levelHeight_mm(scene, 'lv', (id) => (id === 'w' ? 150 : 0))).toBe(2850)
+  })
+
+  it('clamps negative slab elevation to 0 (Pascal\'s `meshY < 0 → 0` rule)', () => {
+    const scene: SceneLike = {
+      nodes: {
+        lv: {
+          type: 'level',
+          id: 'lv',
+          parentId: 'b',
+          level: 0,
+          children: ['w'],
+        },
+        w: { type: 'wall', id: 'w', parentId: 'lv', start: [0, 0], end: [3.6, 0], height: 2.7 },
+      },
+    }
+    expect(levelHeight_mm(scene, 'lv', () => -200)).toBe(2700)
+  })
+
+  it('does not apply slab thickness to ceilings', () => {
+    const scene: SceneLike = {
+      nodes: {
+        lv: {
+          type: 'level',
+          id: 'lv',
+          parentId: 'b',
+          level: 0,
+          children: ['c'],
+        },
+        c: { type: 'ceiling', id: 'c', parentId: 'lv', height: 3.0 },
+      },
+    }
+    expect(levelHeight_mm(scene, 'lv', () => 150)).toBe(3000)
+  })
+})
+
+describe('levelElevation_mm with slab elevation', () => {
+  it('stacks the slab thickness of prior levels into the cumulative offset', () => {
+    const scene = sceneWithTwoLevels()
+    // lv0 has a 3000 mm ceiling and a wall — ceiling wins regardless of slab.
+    // Override: remove the ceiling so the wall (with slab) dominates.
+    const ns = { ...scene.nodes } as Record<string, unknown>
+    ns.lv0 = { type: 'level', id: 'lv0', parentId: 'bldg', level: 0, children: ['w0'] }
+    delete ns.c0
+    const sceneNoCeiling: SceneLike = { nodes: ns }
+    // wall: 2.7 m, slab: 150 mm → level top = 2850 mm.
+    expect(
+      levelElevation_mm(sceneNoCeiling, 'lv1', (id) => (id === 'w0' ? 150 : 0)),
+    ).toBe(2850)
+  })
+})
+
+describe('wallLevelElevation_mm with slab elevation', () => {
+  it('lifts upper-floor walls by ground-floor wall height PLUS its slab', () => {
+    const scene = sceneWithTwoLevels()
+    const ns = { ...scene.nodes } as Record<string, unknown>
+    ns.lv0 = { type: 'level', id: 'lv0', parentId: 'bldg', level: 0, children: ['w0'] }
+    delete ns.c0
+    const sceneNoCeiling: SceneLike = { nodes: ns }
+    // w0: 2.7 m wall on a 150 mm slab → level-0 top = 2850 mm.
+    // w1 sits on level 1, which starts at 2850 mm.
+    expect(
+      wallLevelElevation_mm(sceneNoCeiling, 'w1', (id) => (id === 'w0' ? 150 : 0)),
+    ).toBe(2850)
+  })
+})
