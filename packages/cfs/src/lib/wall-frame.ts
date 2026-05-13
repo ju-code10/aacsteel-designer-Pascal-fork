@@ -19,14 +19,33 @@ export interface PascalWallLike {
 
 const M_TO_MM = 1000
 
+/**
+ * Pascal's default wall height when `wall.height` is undefined. Mirrors
+ * `DEFAULT_WALL_HEIGHT = 2.5` in
+ * `packages/core/src/systems/wall/wall-footprint.ts`. We hard-mirror the
+ * constant here instead of importing from `@pascal-app/core` so this
+ * library stays headless and unit-testable; changes to the upstream
+ * constant should be reflected here.
+ */
+const PASCAL_DEFAULT_WALL_HEIGHT_MM = 2500
+
 export function wallLengthFromPascalWall(wall: PascalWallLike): number {
   const dx = wall.end[0] - wall.start[0]
   const dy = wall.end[1] - wall.start[1]
   return Math.hypot(dx, dy) * M_TO_MM
 }
 
-export function wallHeightFromPascalWall(wall: PascalWallLike): number | null {
-  return typeof wall.height === 'number' ? wall.height * M_TO_MM : null
+/**
+ * Returns the wall's height in mm, falling back to Pascal's default
+ * when `wall.height` is undefined. Pascal's wall-system renders the
+ * wall at that default too (`wall-system.tsx:426`), so CFS framing
+ * stays flush with the Pascal wall mesh and members don't poke into
+ * the slab of the level above.
+ */
+export function wallHeightFromPascalWall(wall: PascalWallLike): number {
+  return typeof wall.height === 'number'
+    ? wall.height * M_TO_MM
+    : PASCAL_DEFAULT_WALL_HEIGHT_MM
 }
 
 export interface WallLocalPoint {

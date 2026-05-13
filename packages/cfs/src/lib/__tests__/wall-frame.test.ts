@@ -7,9 +7,17 @@ describe('wall-frame', () => {
     expect(wallLengthFromPascalWall({ id: 'w', start: [0, 0], end: [3, 4] })).toBeCloseTo(5000, 6)
   })
 
-  it('wallHeightFromPascalWall returns mm or null when missing', () => {
-    expect(wallHeightFromPascalWall({ id: 'w', start: [0, 0], end: [1, 0], height: 2.7 })).toBe(2700)
-    expect(wallHeightFromPascalWall({ id: 'w', start: [0, 0], end: [1, 0] })).toBeNull()
+  it('wallHeightFromPascalWall returns mm, defaulting to Pascal\'s 2500 when height is missing', () => {
+    // Explicit height: passed through, converted m→mm.
+    expect(
+      wallHeightFromPascalWall({ id: 'w', start: [0, 0], end: [1, 0], height: 2.7 }),
+    ).toBe(2700)
+    // Undefined height: mirror Pascal's DEFAULT_WALL_HEIGHT (2.5 m) so CFS
+    // members stay flush with the Pascal wall mesh rather than poking
+    // through the slab of the level above.
+    expect(
+      wallHeightFromPascalWall({ id: 'w', start: [0, 0], end: [1, 0] }),
+    ).toBe(2500)
   })
 
   it('localToWorld places (0,0,0) at the wall start', () => {

@@ -76,7 +76,7 @@ function buildDesiredMembers(
 ): DesiredMember[] {
   const length_mm = wallLengthFromPascalWall(wall)
   const height_mm =
-    framing.wallHeight_mm ?? wallHeightFromPascalWall(wall) ?? settings.wallHeight_mm
+    framing.wallHeight_mm ?? wallHeightFromPascalWall(wall)
   const spacing_mm = framing.studSpacing_mm ?? settings.defaultStudSpacing_mm
   const desired: DesiredMember[] = []
   const z = levelElevation_mm
@@ -406,7 +406,7 @@ function runFramingPassInner(): FramingProcessResult[] {
     const headerDefault: CFSHeaderType =
       framing.defaultHeaderType ?? settings.defaultHeaderType
     const wallHeight_mm =
-      framing.wallHeight_mm ?? wallHeightFromPascalWall(wall) ?? settings.wallHeight_mm
+      framing.wallHeight_mm ?? wallHeightFromPascalWall(wall)
     const studSpacing_mm = framing.studSpacing_mm ?? settings.defaultStudSpacing_mm
     const openingLayout = computeOpeningLayout({
       wallLength_mm: wallLengthFromPascalWall(wall),
