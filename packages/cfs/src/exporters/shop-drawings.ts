@@ -548,8 +548,8 @@ function drawPanelElevation(
         | undefined
       if (!hole) continue
       const proj = serviceHoleProjection_mm(hole, m, transform)
-      const center = toPage(proj.x, proj.y)
-      const pageR = proj.radius * fit.scale
+      const center = toPage(proj.x_mm, proj.y_mm)
+      const pageR = proj.radius_mm * fit.scale
       page.drawCircle({
         x: center.x,
         y: center.y,
@@ -566,7 +566,7 @@ function drawPanelElevation(
     const mark = marks.get(m.id) ?? m.shippingMark
     if (!mark) continue
     const center_mm = memberCenter_mm(m, transform)
-    const center = toPage(center_mm.x, center_mm.y)
+    const center = toPage(center_mm.x_mm, center_mm.y_mm)
     const isVerticalOnPage = fit.rotated
       ? !memberBoundingBox_mm(m, sectionsById.get(m.sectionId) ?? FALLBACK_SECTION, transform).isVertical
       : memberBoundingBox_mm(m, sectionsById.get(m.sectionId) ?? FALLBACK_SECTION, transform).isVertical
@@ -615,8 +615,8 @@ function drawMemberRect(
   const sec = section ?? FALLBACK_SECTION
   const bb = memberBoundingBox_mm(m, sec, transform)
   // Two corners are enough to derive page-space rect even when rotated.
-  const p0 = toPage(bb.x, bb.y)
-  const p1 = toPage(bb.x + bb.width, bb.y + bb.height)
+  const p0 = toPage(bb.x_mm, bb.y_mm)
+  const p1 = toPage(bb.x_mm + bb.width_mm, bb.y_mm + bb.height_mm)
   const px = Math.min(p0.x, p1.x)
   const py = Math.min(p0.y, p1.y)
   const pw = Math.abs(p1.x - p0.x)
@@ -799,7 +799,7 @@ function drawBOMTable(
       ? `${lengthForUnits(row.length_mm, settings.units)} in`
       : `${Math.round(row.length_mm)} mm`
     const weightDisplay = isImperial
-      ? `${round2(row.totalWeight_kg)} kg`
+      ? `${round2(kgToLb(row.totalWeight_kg))} lb`
       : `${round2(row.totalWeight_kg)} kg`
     const cells = [row.mark, row.designation, lengthDisplay, '1', weightDisplay]
     for (let c = 0; c < cells.length; c++) {
@@ -912,7 +912,15 @@ function drawSummaryPage(
       })
     }
   }
-  const sorted = [...aggregates.values()].sort((a, b) => b.weight_kg - a.weight_kg)
+  // Stable order: by weight desc, tie-broken by designation then length so
+  // equal-weight aggregates don't depend on Map insertion order (§6.4 byte
+  // stability).
+  const sorted = [...aggregates.values()].sort((a, b) => {
+    if (b.weight_kg !== a.weight_kg) return b.weight_kg - a.weight_kg
+    if (a.designation !== b.designation)
+      return a.designation < b.designation ? -1 : 1
+    return a.length_mm - b.length_mm
+  })
   const topRows = sorted.slice(0, 30)
   const totalWeight = sorted.reduce((s, r) => s + r.weight_kg, 0)
 

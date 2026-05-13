@@ -51,8 +51,8 @@ describe('makePanelTransform', () => {
     const t = makePanelTransform(panel(600, 4200))
     expect(t.panelWidth_mm).toBe(3600)
     expect(t.panelHeight_mm).toBe(DEFAULT_PANEL_HEIGHT_MM)
-    expect(t.toLocal_mm(600, 0)).toEqual({ x: 0, y: 0 })
-    expect(t.toLocal_mm(1200, 2700)).toEqual({ x: 600, y: 2700 })
+    expect(t.toLocal_mm(600, 0)).toEqual({ x_mm: 0, y_mm: 0 })
+    expect(t.toLocal_mm(1200, 2700)).toEqual({ x_mm: 600, y_mm: 2700 })
   })
 })
 
@@ -64,17 +64,17 @@ describe('memberBoundingBox_mm — vertical members', () => {
   it('places a stud centered on its along-wall coord, full height', () => {
     const bb = memberBoundingBox_mm(studAt(600, 0, 2700), sec, t)
     expect(bb.isVertical).toBe(true)
-    expect(bb.width).toBe(42)
-    expect(bb.height).toBe(2700)
-    expect(bb.x).toBe(600 - 21) // centre 600 minus half-flange
-    expect(bb.y).toBe(0)
+    expect(bb.width_mm).toBe(42)
+    expect(bb.height_mm).toBe(2700)
+    expect(bb.x_mm).toBe(600 - 21) // centre 600 minus half-flange
+    expect(bb.y_mm).toBe(0)
   })
 
   it('translates by panel start when the panel doesn\'t begin at x = 0', () => {
     const t2 = makePanelTransform(panel(600, 4200))
     const bb = memberBoundingBox_mm(studAt(1200, 0, 2700), sec, t2)
-    expect(bb.x).toBe(1200 - 600 - 21) // 579
-    expect(bb.y).toBe(0)
+    expect(bb.x_mm).toBe(1200 - 600 - 21) // 579
+    expect(bb.y_mm).toBe(0)
   })
 })
 
@@ -86,10 +86,10 @@ describe('memberBoundingBox_mm — horizontal members', () => {
   it('rests a top track along its y, full panel width, web-deep', () => {
     const bb = memberBoundingBox_mm(topTrack(0, 3600, 2700), sec, t)
     expect(bb.isVertical).toBe(false)
-    expect(bb.width).toBe(3600)
-    expect(bb.height).toBe(92)
-    expect(bb.x).toBe(0)
-    expect(bb.y).toBe(2700 - 46)
+    expect(bb.width_mm).toBe(3600)
+    expect(bb.height_mm).toBe(92)
+    expect(bb.x_mm).toBe(0)
+    expect(bb.y_mm).toBe(2700 - 46)
   })
 })
 
@@ -97,12 +97,12 @@ describe('memberCenter_mm', () => {
   const t = makePanelTransform(panel(0, 3600))
   it('returns the midpoint in panel-local coords', () => {
     expect(memberCenter_mm(studAt(1800, 0, 2700), t)).toEqual({
-      x: 1800,
-      y: 1350,
+      x_mm: 1800,
+      y_mm: 1350,
     })
     expect(memberCenter_mm(topTrack(0, 3600, 2700), t)).toEqual({
-      x: 1800,
-      y: 2700,
+      x_mm: 1800,
+      y_mm: 2700,
     })
   })
 })
@@ -116,12 +116,12 @@ describe('serviceHoleProjection_mm', () => {
 
   it('maps a hole on a stud to (stud x, member start + offset)', () => {
     const proj = serviceHoleProjection_mm(hole, studAt(600, 0, 2700), t)
-    expect(proj).toEqual({ x: 600, y: 1350, radius: 19 })
+    expect(proj).toEqual({ x_mm: 600, y_mm: 1350, radius_mm: 19 })
   })
 
   it('maps a hole on a horizontal member to (start + offset, member y)', () => {
     const proj = serviceHoleProjection_mm(hole, topTrack(0, 3600, 2700), t)
-    expect(proj).toEqual({ x: 1350, y: 2700, radius: 19 })
+    expect(proj).toEqual({ x_mm: 1350, y_mm: 2700, radius_mm: 19 })
   })
 })
 

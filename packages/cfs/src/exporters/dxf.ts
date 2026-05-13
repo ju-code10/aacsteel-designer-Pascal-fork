@@ -165,14 +165,14 @@ function drawMembers(
     writer.setCurrentLayerName(layer)
 
     const bb = memberBoundingBox_mm(m, section, t)
-    const corners_mm: { x: number; y: number }[] = [
-      { x: bb.x, y: bb.y },
-      { x: bb.x + bb.width, y: bb.y },
-      { x: bb.x + bb.width, y: bb.y + bb.height },
-      { x: bb.x, y: bb.y + bb.height },
+    const corners_mm: { x_mm: number; y_mm: number }[] = [
+      { x_mm: bb.x_mm, y_mm: bb.y_mm },
+      { x_mm: bb.x_mm + bb.width_mm, y_mm: bb.y_mm },
+      { x_mm: bb.x_mm + bb.width_mm, y_mm: bb.y_mm + bb.height_mm },
+      { x_mm: bb.x_mm, y_mm: bb.y_mm + bb.height_mm },
     ]
     const vertices: LWPolylineVertex[] = corners_mm.map((c) => ({
-      point: { x: inUnits(c.x, settings), y: inUnits(c.y, settings) },
+      point: { x: inUnits(c.x_mm, settings), y: inUnits(c.y_mm, settings) },
     }))
     writer.addLWPolyline(vertices, {
       layerName: layer,
@@ -184,7 +184,7 @@ function drawMembers(
     if (mark) {
       writer.setCurrentLayerName('LABELS')
       writer.addMText(
-        point3d(inUnits(mid_mm.x, settings), inUnits(mid_mm.y, settings), 0),
+        point3d(inUnits(mid_mm.x_mm, settings), inUnits(mid_mm.y_mm, settings), 0),
         inUnits(LABEL_HEIGHT_MM, settings),
         mark,
         {
@@ -211,8 +211,8 @@ function drawHoles(
       if (!hole) continue
       const proj = serviceHoleProjection_mm(hole, m, t)
       writer.addCircle(
-        point3d(inUnits(proj.x, settings), inUnits(proj.y, settings), 0),
-        inUnits(proj.radius, settings),
+        point3d(inUnits(proj.x_mm, settings), inUnits(proj.y_mm, settings), 0),
+        inUnits(proj.radius_mm, settings),
         { layerName: 'HOLES' },
       )
     }

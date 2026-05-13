@@ -8,16 +8,22 @@
 // All outputs are in **panel-local millimetres**: origin at the panel's
 // bottom-left corner, +x to the right along the wall, +y up. Per-exporter
 // unit conversion (DXF: mm or 4-dp inches; PDF: pdf-lib points) happens
-// at the call site, not here.
+// at the call site, not here. All numeric fields carry the `_mm` suffix
+// per PROJECT_SPEC §0.5.
 
 import type { CFSMember } from '../schema/cfs-member'
 import type { CFSSection } from '../schema/cfs-member-library'
 import type { CFSPanel } from '../schema/cfs-panel'
 import type { CFSServiceHole } from '../schema/cfs-service-hole'
 
+export interface PointMM {
+  x_mm: number
+  y_mm: number
+}
+
 export interface PanelTransform {
   /** Translate world (along-wall, vertical) → panel-local (x, y) in mm. */
-  toLocal_mm: (x_along_wall_mm: number, y_mm: number) => { x: number; y: number }
+  toLocal_mm: (x_along_wall_mm: number, y_mm: number) => PointMM
   panelWidth_mm: number
   panelHeight_mm: number
 }
@@ -31,8 +37,8 @@ export function makePanelTransform(panel: CFSPanel): PanelTransform {
   const startX = panel.startAlongWall_mm
   return {
     toLocal_mm: (x_along_wall_mm, y_mm) => ({
-      x: x_along_wall_mm - startX,
-      y: y_mm,
+      x_mm: x_along_wall_mm - startX,
+      y_mm,
     }),
     panelWidth_mm: panel.endAlongWall_mm - panel.startAlongWall_mm,
     panelHeight_mm: DEFAULT_PANEL_HEIGHT_MM,
@@ -44,25 +50,25 @@ export function makePanelTransform(panel: CFSPanel): PanelTransform {
 // horizontal tracks/headers/sills), so a bounding rectangle is a
 // loss-less representation.
 export interface MemberBoundingBox_mm {
-  x: number
-  y: number
-  width: number
-  height: number
+  x_mm: number
+  y_mm: number
+  width_mm: number
+  height_mm: number
   isVertical: boolean
 }
 
 // Internal helper — member endpoint envelope in along-wall coordinates.
 function memberAlongWall(m: CFSMember): {
-  x0: number
-  x1: number
-  y0: number
-  y1: number
+  x0_mm: number
+  x1_mm: number
+  y0_mm: number
+  y1_mm: number
 } {
   return {
-    x0: Math.min(m.start.x_mm, m.end.x_mm),
-    x1: Math.max(m.start.x_mm, m.end.x_mm),
-    y0: Math.min(m.start.y_mm, m.end.y_mm),
-    y1: Math.max(m.start.y_mm, m.end.y_mm),
+    x0_mm: Math.min(m.start.x_mm, m.end.x_mm),
+    x1_mm: Math.max(m.start.x_mm, m.end.x_mm),
+    y0_mm: Math.min(m.start.y_mm, m.end.y_mm),
+    y1_mm: Math.max(m.start.y_mm, m.end.y_mm),
   }
 }
 
@@ -71,38 +77,38 @@ export function memberBoundingBox_mm(
   section: CFSSection,
   t: PanelTransform,
 ): MemberBoundingBox_mm {
-  const { x0, x1, y0, y1 } = memberAlongWall(member)
-  const length_along = x1 - x0
-  const length_vertical = y1 - y0
-  const isVertical = length_vertical > length_along
+  const { x0_mm, x1_mm, y0_mm, y1_mm } = memberAlongWall(member)
+  const length_along_mm = x1_mm - x0_mm
+  const length_vertical_mm = y1_mm - y0_mm
+  const isVertical = length_vertical_mm > length_along_mm
 
   // The "thickness" is the dimension of the cross-section projected onto
   // the wall elevation, perpendicular to the member axis:
   //   vertical member → flange width
   //   horizontal member → web depth
-  const thick = isVertical
+  const thick_mm = isVertical
     ? section.properties.flangeWidth_mm
     : section.properties.webDepth_mm
-  const halfThick = thick / 2
+  const halfThick_mm = thick_mm / 2
 
   if (isVertical) {
-    const cx = (x0 + x1) / 2
-    const minLocal = t.toLocal_mm(cx - halfThick, y0)
+    const cx_mm = (x0_mm + x1_mm) / 2
+    const minLocal = t.toLocal_mm(cx_mm - halfThick_mm, y0_mm)
     return {
-      x: minLocal.x,
-      y: minLocal.y,
-      width: thick,
-      height: length_vertical,
+      x_mm: minLocal.x_mm,
+      y_mm: minLocal.y_mm,
+      width_mm: thick_mm,
+      height_mm: length_vertical_mm,
       isVertical: true,
     }
   }
-  const cy = (y0 + y1) / 2
-  const minLocal = t.toLocal_mm(x0, cy - halfThick)
+  const cy_mm = (y0_mm + y1_mm) / 2
+  const minLocal = t.toLocal_mm(x0_mm, cy_mm - halfThick_mm)
   return {
-    x: minLocal.x,
-    y: minLocal.y,
-    width: length_along,
-    height: thick,
+    x_mm: minLocal.x_mm,
+    y_mm: minLocal.y_mm,
+    width_mm: length_along_mm,
+    height_mm: thick_mm,
     isVertical: false,
   }
 }
@@ -111,15 +117,15 @@ export function memberBoundingBox_mm(
 export function memberCenter_mm(
   member: CFSMember,
   t: PanelTransform,
-): { x: number; y: number } {
-  const { x0, x1, y0, y1 } = memberAlongWall(member)
-  return t.toLocal_mm((x0 + x1) / 2, (y0 + y1) / 2)
+): PointMM {
+  const { x0_mm, x1_mm, y0_mm, y1_mm } = memberAlongWall(member)
+  return t.toLocal_mm((x0_mm + x1_mm) / 2, (y0_mm + y1_mm) / 2)
 }
 
 export interface ServiceHoleProjection_mm {
-  x: number
-  y: number
-  radius: number
+  x_mm: number
+  y_mm: number
+  radius_mm: number
 }
 
 export function serviceHoleProjection_mm(
@@ -127,19 +133,23 @@ export function serviceHoleProjection_mm(
   member: CFSMember,
   t: PanelTransform,
 ): ServiceHoleProjection_mm {
-  const { x0, x1, y0, y1 } = memberAlongWall(member)
-  const isVertical = y1 - y0 > x1 - x0
-  const pos = hole.positionAlongMember_mm
+  const { x0_mm, x1_mm, y0_mm, y1_mm } = memberAlongWall(member)
+  const isVertical = y1_mm - y0_mm > x1_mm - x0_mm
+  const pos_mm = hole.positionAlongMember_mm
   const center = isVertical
-    ? t.toLocal_mm((x0 + x1) / 2, y0 + pos)
-    : t.toLocal_mm(x0 + pos, (y0 + y1) / 2)
-  return { x: center.x, y: center.y, radius: hole.diameter_mm / 2 }
+    ? t.toLocal_mm((x0_mm + x1_mm) / 2, y0_mm + pos_mm)
+    : t.toLocal_mm(x0_mm + pos_mm, (y0_mm + y1_mm) / 2)
+  return { x_mm: center.x_mm, y_mm: center.y_mm, radius_mm: hole.diameter_mm / 2 }
 }
 
 // Scale a source content box (in panel-local mm) to fit inside a
 // destination region (in PDF points or whatever unit the caller chose).
 // Returns the scale factor and the centred offsets. Margin is applied
 // uniformly inside the destination region.
+//
+// Note: this helper is unit-agnostic. The destination units depend on the
+// caller (PDF points for shop drawings, mm for DXF). Fields below carry
+// no unit suffix because the unit is fixed by the caller, not this code.
 export interface ScaleToFitResult {
   scale: number
   offsetX: number

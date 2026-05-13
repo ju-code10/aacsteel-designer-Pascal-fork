@@ -1,10 +1,13 @@
 'use client'
 
 // §7.8.1 — Welcome callout. Shown above `ProjectSettingsBody` the first
-// time the user toggles CFS mode in a session. Session-only dismissal
-// per appendix A.4 (slice-9 default); localStorage persistence is v2.
+// time the user toggles CFS mode in a session, AND only when the scene
+// has no `cfs_wall_framing` yet (a returning user with an imported scene
+// already knows what CFS mode is). Session-only dismissal per appendix
+// A.4 (slice-9 default); localStorage persistence is v2.
 
 import { useCFS } from '@pascal-app/cfs'
+import { useScene } from '@pascal-app/core'
 import {
   WELCOME_CALLOUT_BODY,
   WELCOME_CALLOUT_DISMISS_LABEL,
@@ -15,8 +18,14 @@ export function WelcomeCallout(): React.JSX.Element | null {
   const dismissed = useCFS((s) => s.welcomeCalloutDismissed)
   const dismiss = useCFS((s) => s.dismissWelcomeCallout)
   const isCFSMode = useCFS((s) => s.isCFSMode)
+  const hasFraming = useScene((s) => {
+    for (const node of Object.values(s.nodes)) {
+      if ((node as { type?: string }).type === 'cfs_wall_framing') return true
+    }
+    return false
+  })
 
-  if (!isCFSMode || dismissed) return null
+  if (!isCFSMode || dismissed || hasFraming) return null
 
   return (
     <div
