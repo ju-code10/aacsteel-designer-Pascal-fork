@@ -23,11 +23,13 @@ const BUTTON_BASE =
 const BUTTON_INACTIVE =
   'border-border bg-background text-foreground hover:bg-muted'
 const BUTTON_ACTIVE = 'border-primary bg-primary text-primary-foreground'
-// Primary one-shot action: filled, accent-bordered, distinct from the modal
-// tool buttons so the user reads "Panelize All" as a single command rather
-// than a tool to activate.
+// Primary one-shot action: outlined in the accent color, fills only on
+// hover/press. Deliberately distinct from BUTTON_ACTIVE — the modal tool
+// buttons use the filled style to mean "tool currently active", so a
+// permanently-filled button reads as a pressed toggle. An outlined accent
+// reads as a clickable command instead.
 const BUTTON_PRIMARY_ACTION =
-  'border-primary bg-primary text-primary-foreground hover:bg-primary/90'
+  'border-primary bg-background text-primary font-semibold hover:bg-primary hover:text-primary-foreground active:bg-primary/90'
 
 /**
  * CFS-mode toolbar. Slice 1 added the mode toggle; slice 4 added the

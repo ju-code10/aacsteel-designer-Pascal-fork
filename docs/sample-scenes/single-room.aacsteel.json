@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "1.0.0",
+  "generator": {
+    "tool": "AACSteel-Designer",
+    "version": "1.0.0",
+    "exportedAt": "2026-05-14T12:00:00.000Z"
+  },
+  "pascalNodes": {
+    "site_sample": {
+      "object": "node",
+      "type": "site",
+      "id": "site_sample",
+      "parentId": null,
+      "children": ["building_sample"],
+      "metadata": {}
+    },
+    "building_sample": {
+      "object": "node",
+      "type": "building",
+      "id": "building_sample",
+      "parentId": "site_sample",
+      "children": ["level_sample"],
+      "createdAt": "2026-05-14T12:00:00Z",
+      "metadata": {}
+    },
+    "level_sample": {
+      "object": "node",
+      "type": "level",
+      "id": "level_sample",
+      "parentId": "building_sample",
+      "level": 0,
+      "children": [
+        "slab_sample",
+        "wall_south",
+        "wall_east",
+        "wall_north",
+        "wall_west"
+      ],
+      "metadata": {}
+    },
+    "slab_sample": {
+      "object": "node",
+      "type": "slab",
+      "id": "slab_sample",
+      "parentId": "level_sample",
+      "polygon": [[0, 0], [4, 0], [4, 3], [0, 3]],
+      "holes": [],
+      "holeMetadata": [],
+      "elevation": 0.05,
+      "autoFromWalls": false,
+      "metadata": {}
+    },
+    "wall_south": {
+      "object": "node",
+      "type": "wall",
+      "id": "wall_south",
+      "parentId": "level_sample",
+      "children": [],
+      "start": [0, 0],
+      "end": [4, 0],
+      "height": 2.5,
+      "thickness": 0.15,
+      "frontSide": "unknown",
+      "backSide": "unknown",
+      "metadata": {}
+    },
+    "wall_east": {
+      "object": "node",
+      "type": "wall",
+      "id": "wall_east",
+      "parentId": "level_sample",
+      "children": [],
+      "start": [4, 0],
+      "end": [4, 3],
+      "height": 2.5,
+      "thickness": 0.15,
+      "frontSide": "unknown",
+      "backSide": "unknown",
+      "metadata": {}
+    },
+    "wall_north": {
+      "object": "node",
+      "type": "wall",
+      "id": "wall_north",
+      "parentId": "level_sample",
+      "children": [],
+      "start": [4, 3],
+      "end": [0, 3],
+      "height": 2.5,
+      "thickness": 0.15,
+      "frontSide": "unknown",
+      "backSide": "unknown",
+      "metadata": {}
+    },
+    "wall_west": {
+      "object": "node",
+      "type": "wall",
+      "id": "wall_west",
+      "parentId": "level_sample",
+      "children": [],
+      "start": [0, 3],
+      "end": [0, 0],
+      "height": 2.5,
+      "thickness": 0.15,
+      "frontSide": "unknown",
+      "backSide": "unknown",
+      "metadata": {}
+    }
+  },
+  "cfsNodes": {
+    "aac57e00-0000-4000-a000-000000000001": {
+      "type": "cfs_project",
+      "id": "aac57e00-0000-4000-a000-000000000001",
+      "parentId": "site_sample",
+      "schemaVersion": "1.0.0",
+      "name": "Sample 4x3 m room",
+      "settings": {
+        "defaultStudSpacing_mm": 406.4,
+        "defaultStudSection": "ff5a0001-0000-4000-a000-362516200054",
+        "defaultTrackSection": "ff5a0002-0000-4000-a000-362412500054",
+        "defaultHeaderType": "box",
+        "panelMaxWidth_mm": 3658,
+        "panelMaxWeight_kg": 680,
+        "wallHeight_mm": 2500,
+        "units": "imperial"
+      },
+      "libraries": ["ff5a0000-0000-4000-a000-000000000001"],
+      "activeLibraryId": "ff5a0000-0000-4000-a000-000000000001",
+      "createdAt": "2026-05-14T12:00:00Z",
+      "updatedAt": "2026-05-14T12:00:00Z",
+      "metadata": {}
+    }
+  }
+}
