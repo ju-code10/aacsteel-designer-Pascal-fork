@@ -238,16 +238,36 @@ async function pickAndImport(): Promise<void> {
         try {
           const text = await file.text()
           const raw = JSON.parse(text)
-          const result: ImportResult = importJSON(
-            raw,
-            useScene,
-            // The real useCFS store's setActiveLibrary takes a branded
-            // CFSMemberLibraryId; the importer's CFSStoreLike contract
-            // accepts a plain string. The cast collapses the brand at
-            // the boundary so we don't leak it through json.ts.
-            useCFS as unknown as Parameters<typeof importJSON>[2],
-            { withBatch: withBatchedUndo },
-          )
+          // §6.5 — Import replaces the current scene. Without the
+          // unloadScene() call below, importJSON would call createNode on
+          // top of the existing nodes (whatever Pascal restored from
+          // `pascal-editor-scene` in localStorage), so the user would end
+          // up with the default Pascal site + their previous work + the
+          // imported scene all merged into one graph. The merged state
+          // was then saved back to localStorage and reappeared on every
+          // browser reload as "floating tracks" / duplicate walls.
+          //
+          // We wrap unload + import in a single withBatchedUndo so the
+          // entire operation collapses to one Ctrl+Z step.
+          // withBatchedUndo invokes its callback synchronously, but TS
+          // can't narrow assignments made inside a closure. Use the
+          // definite-assignment assertion so we can keep `result` typed
+          // as `ImportResult` (not `ImportResult | undefined`) below.
+          let result!: ImportResult
+          withBatchedUndo('Scene import', () => {
+            useScene.getState().unloadScene()
+            result = importJSON(
+              raw,
+              useScene,
+              // The real useCFS store's setActiveLibrary takes a branded
+              // CFSMemberLibraryId; the importer's CFSStoreLike contract
+              // accepts a plain string. The cast collapses the brand at
+              // the boundary so we don't leak it through json.ts.
+              useCFS as unknown as Parameters<typeof importJSON>[2],
+              // Don't pass withBatch — we're already inside one.
+              {},
+            )
+          })
           if (result.status === 'success') {
             setStatus({
               kind: 'success',
