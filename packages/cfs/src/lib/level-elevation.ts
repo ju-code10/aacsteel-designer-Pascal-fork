@@ -101,7 +101,18 @@ export function levelHeight_mm(
       | undefined
     if (!child) continue
     if (child.type !== 'ceiling' && child.type !== 'wall') continue
-    const h_mm = (child.height ?? 0) * 1000
+    // Pascal's `getLevelHeight` defaults missing heights to its 2.5 m
+    // DEFAULT_LEVEL_HEIGHT (`packages/viewer/src/systems/level/level-utils.ts`).
+    // `WallNode.height` is `z.number().optional()` in Pascal's schema, so
+    // walls drawn without an explicit height fall back to that default
+    // both in the rendered wall mesh and in level-stacking math. We mirror
+    // the same default — using `?? 0` here would silently undercount the
+    // level top by 2.5 m and place upper-level stud bases (and the slab
+    // pierce-fix in `slab-watcher-logic.ts`) at the wrong world y.
+    const h_mm =
+      typeof child.height === 'number'
+        ? child.height * 1000
+        : DEFAULT_LEVEL_HEIGHT_MM
     // Walls sit on top of any slab beneath them; the slab thickness adds
     // to the wall's contribution to this level's top. Pascal clamps a
     // negative meshY to 0 in `level-utils.ts`, so we do too — walls that

@@ -5,6 +5,7 @@ import {
   CFSFramingSystem,
   CFSOpeningWatcher,
   CFSServiceHoleSystem,
+  CFSSlabWatcher,
   CFSWallWatcher,
   ssmaLibraryJson,
   useCFS,
@@ -80,6 +81,7 @@ export function CFSRoot(): React.JSX.Element {
     <>
       <CFSWallWatcher />
       <CFSOpeningWatcher />
+      <CFSSlabWatcher />
       <CFSFramingSystem />
       <CFSGeometrySystem />
       <CFSServiceHoleSystem />

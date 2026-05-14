@@ -74,6 +74,36 @@ describe('levelHeight_mm', () => {
     }
     expect(levelHeight_mm(scene, 'lv')).toBe(DEFAULT_LEVEL_HEIGHT_MM)
   })
+
+  it('treats walls without an explicit height as 2.5 m, like Pascal does', () => {
+    // Pascal's `WallNode.height` is `z.number().optional()`; the wall-system
+    // renders such walls at the 2.5 m default. Earlier the CFS math used
+    // `?? 0`, which undercounted the level top by 2.5 m once a slab was
+    // present and produced upper-level studs at the wrong world y.
+    const scene: SceneLike = {
+      nodes: {
+        lv: {
+          type: 'level',
+          id: 'lv',
+          parentId: 'b',
+          level: 0,
+          children: ['w'],
+        },
+        w: {
+          type: 'wall',
+          id: 'w',
+          parentId: 'lv',
+          start: [0, 0],
+          end: [3.6, 0],
+          // height intentionally missing
+        },
+      },
+    }
+    expect(levelHeight_mm(scene, 'lv')).toBe(DEFAULT_LEVEL_HEIGHT_MM)
+    // With a 150 mm slab beneath it, the wall still contributes 2.5 m of
+    // height — total level top should be 2650 mm, not 150 mm.
+    expect(levelHeight_mm(scene, 'lv', () => 150)).toBe(2650)
+  })
 })
 
 describe('levelElevation_mm', () => {

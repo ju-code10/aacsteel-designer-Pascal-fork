@@ -44,6 +44,12 @@ export {
 export { CFSFramingSystem } from './systems/framing-system'
 export { CFSWallWatcher } from './systems/wall-watcher'
 export { CFSOpeningWatcher } from './systems/opening-watcher'
+export { CFSSlabWatcher } from './systems/slab-watcher'
+export {
+  detectSlabChanges,
+  processSlabChanges,
+  type SlabChangeResult,
+} from './systems/slab-watcher-logic'
 export { CFSServiceHoleSystem } from './systems/service-hole-system'
 export { runFramingPass } from './systems/framing-pass'
 export { runServiceHolePass, verdictsEquivalent } from './systems/service-hole-pass'
