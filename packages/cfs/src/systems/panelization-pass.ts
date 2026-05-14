@@ -43,6 +43,19 @@ void MM_PER_METER
 
 let isRunning = false
 
+/**
+ * Cross-pass signal so `runFramingPass` can skip work while we are in the
+ * middle of mutating panels and member.panelId. Without this, the framing
+ * pass fires on every createNode/deleteNode inside panelization (each
+ * synchronously markDirties the parent framing), sees the framing dirty,
+ * recomputes desired members from scratch — and on tracks specifically
+ * reverts the panel-aware splits to a single full-wall member, dropping
+ * the panel assignments the planner just wrote.
+ */
+export function isPanelizationRunning(): boolean {
+  return isRunning
+}
+
 export interface PanelizationPassResult {
   framingId: CFSWallFramingId
   status: 'ok' | 'no-wall' | 'no-settings' | 'no-library' | 'zero-length'

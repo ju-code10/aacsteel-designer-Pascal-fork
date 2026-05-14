@@ -35,6 +35,7 @@ import {
 } from '../lib/slab-elevation'
 import { getInheritedStudPositions_mm } from '../lib/stacked-walls'
 import { findStudCandidatesAlongWall } from '../lib/stud-candidates'
+import { isPanelizationRunning } from './panelization-pass'
 import {
   computeOpeningLayout,
   fieldStudExcluded,
@@ -292,6 +293,13 @@ let isRunning = false
  */
 export function runFramingPass(): FramingProcessResult[] {
   if (isRunning) return []
+  // Yield to the panelization pass while it's writing panels and
+  // member.panelId. Each createNode inside panelization markDirties the
+  // parent framing, which would re-fire this subscriber and let the
+  // framing pass overwrite the planner's track splits / panel assignments
+  // mid-flight. The framing pass will run cleanly on the next scene
+  // change after panelization finishes.
+  if (isPanelizationRunning()) return []
   isRunning = true
   try {
     return runFramingPassInner()
@@ -441,7 +449,35 @@ function runFramingPassInner(): FramingProcessResult[] {
     )
     const desired = materialiseDesired(framing, desiredRaw)
     const existing = childrenOfType<CFSMember>(sceneState.nodes, framingId, 'cfs_member')
-    const diff = diffMembers(existing, desired)
+
+    // §5.5 — once panelization has placed CFSPanels under this framing, it
+    // owns the tracks: top-track / bottom-track / sill-track get split into
+    // one piece per panel, each piece carries the panel's id, and the
+    // exporters key on those ids. If we let the framing pass diff tracks,
+    // it would emit a single full-wall track per role (its desired shape),
+    // delete every panel-aware split, and create one fresh full-wall
+    // member per role with `panelId = null` — i.e., it would silently
+    // un-panelize the wall on the next scene mutation. Filter both sides
+    // of the diff so tracks are left to panelization. Plain studs,
+    // headers, jambs, sills, cripples are unaffected because panelization
+    // never splits those.
+    const hasPanels = childrenOfType<{ id: string }>(
+      sceneState.nodes,
+      framingId,
+      'cfs_panel',
+    ).length > 0
+    const TRACK_ROLES = new Set<CFSMember['role']>([
+      'top-track',
+      'bottom-track',
+      'sill-track',
+    ])
+    const desiredForDiff = hasPanels
+      ? desired.filter((m) => !TRACK_ROLES.has(m.role))
+      : desired
+    const existingForDiff = hasPanels
+      ? existing.filter((m) => !TRACK_ROLES.has(m.role))
+      : existing
+    const diff = diffMembers(existingForDiff, desiredForDiff)
 
     // Build attribution map: hash → sourceOpeningId. Members with no source
     // opening are excluded from the map; openings ids point at strings here
