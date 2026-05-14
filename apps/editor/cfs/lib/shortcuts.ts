@@ -96,7 +96,7 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
     id: 'cfs:action:panelize',
     category: 'tools',
     label: 'P',
-    description: 'Panelize selected framing (or all)',
+    description: 'Panelize All — split every CFS wall in the scene',
     match: modifierFreeLetter('KeyP'),
   },
   {

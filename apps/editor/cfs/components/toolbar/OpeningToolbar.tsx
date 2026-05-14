@@ -23,6 +23,11 @@ const BUTTON_BASE =
 const BUTTON_INACTIVE =
   'border-border bg-background text-foreground hover:bg-muted'
 const BUTTON_ACTIVE = 'border-primary bg-primary text-primary-foreground'
+// Primary one-shot action: filled, accent-bordered, distinct from the modal
+// tool buttons so the user reads "Panelize All" as a single command rather
+// than a tool to activate.
+const BUTTON_PRIMARY_ACTION =
+  'border-primary bg-primary text-primary-foreground hover:bg-primary/90'
 
 /**
  * CFS-mode toolbar. Slice 1 added the mode toggle; slice 4 added the
@@ -100,9 +105,13 @@ export function OpeningToolbar(): React.JSX.Element | null {
       >
         {PANEL_BREAK_TOOL_LABEL}
       </button>
+      <span
+        aria-hidden="true"
+        className="mx-1 h-5 w-px bg-border"
+      />
       <button
         type="button"
-        className={`${BUTTON_BASE} ${BUTTON_INACTIVE}`}
+        className={`${BUTTON_BASE} ${BUTTON_PRIMARY_ACTION}`}
         onClick={panelizeAll}
         title={`${PANELIZE_ACTION_TOOLTIP} ${shortcutHint('cfs:action:panelize')}`}
       >

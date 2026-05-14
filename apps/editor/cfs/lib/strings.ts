@@ -27,9 +27,9 @@ export const PANEL_BREAK_TOOL_LABEL = 'Panel break'
 export const PANEL_BREAK_TOOL_TOOLTIP =
   'Place a manual panel break on the clicked wall. The panelizer respects the break and re-runs.'
 
-export const PANELIZE_ACTION_LABEL = 'Panelize'
+export const PANELIZE_ACTION_LABEL = 'Panelize All'
 export const PANELIZE_ACTION_TOOLTIP =
-  'Run panelization on every CFS wall in the scene (or the selected one if any).'
+  'One-click: split every CFS wall in the scene into shippable panels. Required before BOM, cut list, DXF, and shop-drawing exports key off panel ids.'
 
 export const SETTINGS_TAB_LABEL = 'Settings'
 
@@ -62,4 +62,4 @@ export const WELCOME_CALLOUT_DISMISS_LABEL = 'Got it'
 
 // §7.8.3 + §7.8.4 — empty-state hints inside the wall-framing body.
 export const EMPTY_OPENINGS_HINT = 'No openings yet. Press T or click the Opening tool to place one.'
-export const EMPTY_PANELS_HINT = 'This wall has not been panelized. Click Panelize below or press P to split the wall into shippable panels.'
+export const EMPTY_PANELS_HINT = 'This wall has not been panelized. Click Panelize All in the toolbar (or press P) to split every wall in the scene into shippable panels.'
