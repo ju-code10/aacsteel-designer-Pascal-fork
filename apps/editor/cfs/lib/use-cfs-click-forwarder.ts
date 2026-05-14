@@ -67,6 +67,12 @@ interface MemberHit {
   point: THREE.Vector3
 }
 
+interface WallMeshHit {
+  wallId: string
+  point: THREE.Vector3
+  distance: number
+}
+
 function resolveMemberFromHit(hit: THREE.Intersection): MemberHit | null {
   // Non-instanced meshes carry `userData.cfsMemberId` directly.
   let cur: THREE.Object3D | null = hit.object
@@ -86,6 +92,38 @@ function resolveMemberFromHit(hit: THREE.Intersection): MemberHit | null {
     cur = cur.parent
   }
   return null
+}
+
+/**
+ * Fallback raycast against Pascal's invisible wall meshes. CFS mode hides
+ * every wall via `wall-visibility.ts` so `intersectObject` skips them; we
+ * need to catch clicks that land between studs/tracks (e.g., panel-break
+ * placement mid-bay). For each registered wall, temporarily flip
+ * `obj.visible = true`, raycast through its subtree, restore visibility,
+ * and tag the resulting hits with their wall id. Returns the nearest hit.
+ */
+function raycastPascalWalls(
+  raycaster: THREE.Raycaster,
+): WallMeshHit | null {
+  let best: WallMeshHit | null = null
+  for (const wallId of sceneRegistry.byType.wall) {
+    const obj = sceneRegistry.nodes.get(wallId) as THREE.Object3D | undefined
+    if (!obj) continue
+    const wasVisible = obj.visible
+    obj.visible = true
+    const hits: THREE.Intersection[] = []
+    try {
+      raycaster.intersectObject(obj, true, hits)
+    } finally {
+      obj.visible = wasVisible
+    }
+    for (const h of hits) {
+      if (!best || h.distance < best.distance) {
+        best = { wallId, point: h.point.clone(), distance: h.distance }
+      }
+    }
+  }
+  return best
 }
 
 interface WallShape {
@@ -157,32 +195,43 @@ export function useCFSWallClickForwarder(isCFSMode: boolean): void {
         -((e.clientY - rect.top) / rect.height) * 2 + 1,
       )
       _raycaster.setFromCamera(_ndc, camera)
-      const hits = _raycaster.intersectObject(cfsGroup, true)
-      if (hits.length === 0) return
+      const cfsHits = _raycaster.intersectObject(cfsGroup, true)
 
-      // First CFS hit. Walk to its member id.
-      let hit: MemberHit | null = null
-      for (const h of hits) {
+      // Resolve the click to a (wallId, hit point) pair. Prefer CFS member
+      // hits (precise, picks the topmost member); fall back to Pascal walls
+      // for clicks that land between studs/tracks. Without the fallback,
+      // tools like Panel Break appear to misfire whenever the cursor lands
+      // in an empty bay — the user sees the click but no wall:click fires.
+      let resolvedWallId: string | null = null
+      let resolvedPoint: THREE.Vector3 | null = null
+
+      for (const h of cfsHits) {
         const m = resolveMemberFromHit(h)
-        if (m) {
-          hit = m
-          break
-        }
+        if (!m) continue
+        const sceneNow = useScene.getState()
+        const member = sceneNow.nodes[m.memberId as unknown as AnyNodeId] as
+          | { parentId: AnyNodeId }
+          | undefined
+        const framing = member
+          ? (sceneNow.nodes[member.parentId] as
+              | { parentId: AnyNodeId }
+              | undefined)
+          : undefined
+        if (!framing) continue
+        resolvedWallId = framing.parentId as unknown as string
+        resolvedPoint = m.point
+        break
       }
-      if (!hit) return
 
-      // member → framing → wall via scene state.
+      if (!resolvedWallId || !resolvedPoint) {
+        const wallHit = raycastPascalWalls(_raycaster)
+        if (!wallHit) return
+        resolvedWallId = wallHit.wallId
+        resolvedPoint = wallHit.point
+      }
+
       const sceneState = useScene.getState()
-      const member = sceneState.nodes[hit.memberId as unknown as AnyNodeId] as
-        | { parentId: AnyNodeId }
-        | undefined
-      if (!member) return
-      const framing = sceneState.nodes[member.parentId] as
-        | { parentId: AnyNodeId }
-        | undefined
-      if (!framing) return
-      const wallId = framing.parentId as unknown as string
-      const wall = sceneState.nodes[wallId as unknown as AnyNodeId] as
+      const wall = sceneState.nodes[resolvedWallId as unknown as AnyNodeId] as
         | WallNode
         | undefined
       if (!wall) return
@@ -192,8 +241,12 @@ export function useCFSWallClickForwarder(isCFSMode: boolean): void {
       ) {
         return
       }
+      const wallId = resolvedWallId
 
-      const along_m = projectAlongWall_m(wall as unknown as WallShape, hit.point)
+      const along_m = projectAlongWall_m(
+        wall as unknown as WallShape,
+        resolvedPoint,
+      )
       if (along_m === null) return
 
       // Force the Pascal wall registry entry to be "found" — the tool
@@ -207,7 +260,7 @@ export function useCFSWallClickForwarder(isCFSMode: boolean): void {
       // stopPropagation). Other fields are filled in with safe defaults.
       const event: WallEvent = {
         node: wall,
-        position: [hit.point.x, hit.point.y, hit.point.z] as [number, number, number],
+        position: [resolvedPoint.x, resolvedPoint.y, resolvedPoint.z] as [number, number, number],
         localPosition: [along_m, 0, 0] as [number, number, number],
         normal: undefined,
         faceIndex: undefined,
