@@ -313,27 +313,29 @@ function rebuildTracks(
 ): number {
   if (tracks.length === 0) return 0
   // Bucket by (role, sectionId, y_mm) — the y-coordinate distinguishes top,
-  // bottom, and sill tracks at different heights.
+  // bottom, and sill tracks at different heights. We deliberately do NOT key
+  // on world z: tracks always live on the wall's local centerline (z = 0),
+  // and any variation in m.start.z_mm across pieces of the same role on the
+  // same wall is either a previous re-panelization artefact (see the z = 0
+  // fix below) or floating-point noise — both should collapse into one
+  // bucket and rebuild from local z = 0.
   type Bucket = {
     role: CFSMember['role']
     sectionId: string
     y_mm: number
-    z_mm: number
     orientation_deg: number
     pieces: CFSMember[]
   }
   const buckets = new Map<string, Bucket>()
   for (const m of tracks) {
     const yKey = Math.round(m.start.y_mm)
-    const zKey = Math.round((m.start.z_mm + m.end.z_mm) / 2)
-    const key = `${m.role}|${m.sectionId}|${yKey}|${zKey}`
+    const key = `${m.role}|${m.sectionId}|${yKey}`
     let bucket = buckets.get(key)
     if (!bucket) {
       bucket = {
         role: m.role,
         sectionId: m.sectionId,
         y_mm: m.start.y_mm,
-        z_mm: zKey,
         orientation_deg: m.orientation_deg,
         pieces: [],
       }
@@ -367,15 +369,23 @@ function rebuildTracks(
       const overlapStart = Math.max(spanStart, d.startAlongWall_mm)
       const overlapEnd = Math.min(spanEnd, d.endAlongWall_mm)
       if (overlapEnd <= overlapStart) continue
+      // Tracks sit on the wall's local centerline. `bucket.y_mm` is the
+      // existing piece's world y, which round-trips through localToWorld
+      // because we don't add a level elevation here (the framing pass already
+      // baked it in when it produced the original tracks). World z must be
+      // recomputed from local z = 0 — passing the existing piece's world z
+      // back through localToWorld re-projects it through the wall's
+      // perpendicular vector and adds wall.start, displacing every new
+      // track piece off the wall by an offset proportional to wall.start.
       const startPoint: CFSPoint3D = localToWorld(wall, {
         x_mm: overlapStart,
         y_mm: bucket.y_mm,
-        z_mm: bucket.z_mm,
+        z_mm: 0,
       })
       const endPoint: CFSPoint3D = localToWorld(wall, {
         x_mm: overlapEnd,
         y_mm: bucket.y_mm,
-        z_mm: bucket.z_mm,
+        z_mm: 0,
       })
       const newPanelId =
         panelIdByStart.get(Math.round(d.startAlongWall_mm)) ?? null
