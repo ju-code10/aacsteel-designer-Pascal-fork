@@ -15,6 +15,8 @@ import type { CFSMember } from '../schema/cfs-member'
 import type { CFSSection } from '../schema/cfs-member-library'
 import type { CFSPanel } from '../schema/cfs-panel'
 import type { CFSServiceHole } from '../schema/cfs-service-hole'
+import type { PascalWallLike } from './wall-frame'
+import { worldPointToWallLocalX_mm } from './panelization-zones'
 
 export interface PointMM {
   x_mm: number
@@ -22,8 +24,24 @@ export interface PointMM {
 }
 
 export interface PanelTransform {
-  /** Translate world (along-wall, vertical) → panel-local (x, y) in mm. */
-  toLocal_mm: (x_along_wall_mm: number, y_mm: number) => PointMM
+  /**
+   * Parent wall — needed so we can project member endpoints (stored in
+   * world (x, y, z)) onto the wall's local along-axis. Without this we'd
+   * treat world x as along-wall x, which is only correct for a wall at
+   * world origin running along +x.
+   */
+  wall: PascalWallLike
+  /**
+   * The level's stacked world y the framing pass added to every member's
+   * y when emitting them. Subtracting this back out lets a member at the
+   * top track of a level-1 wall (world y = 5400 on a 2.7 m wall stack)
+   * land at panel-local y = 2700 instead of off-canvas.
+   */
+  levelElevation_mm: number
+  /** Where this panel starts along the wall, in mm. */
+  startAlongWall_mm: number
+  /** Translate (along-wall x, local y) → panel-local (x, y) in mm. */
+  toLocal_mm: (along_wall_x_mm: number, local_y_mm: number) => PointMM
   panelWidth_mm: number
   panelHeight_mm: number
 }
@@ -33,12 +51,19 @@ export interface PanelTransform {
 // constant so DXF and PDF stay consistent.
 export const DEFAULT_PANEL_HEIGHT_MM = 2700
 
-export function makePanelTransform(panel: CFSPanel): PanelTransform {
+export function makePanelTransform(
+  panel: CFSPanel,
+  wall: PascalWallLike,
+  levelElevation_mm = 0,
+): PanelTransform {
   const startX = panel.startAlongWall_mm
   return {
-    toLocal_mm: (x_along_wall_mm, y_mm) => ({
-      x_mm: x_along_wall_mm - startX,
-      y_mm,
+    wall,
+    levelElevation_mm,
+    startAlongWall_mm: startX,
+    toLocal_mm: (along_wall_x_mm, local_y_mm) => ({
+      x_mm: along_wall_x_mm - startX,
+      y_mm: local_y_mm,
     }),
     panelWidth_mm: panel.endAlongWall_mm - panel.startAlongWall_mm,
     panelHeight_mm: DEFAULT_PANEL_HEIGHT_MM,
@@ -57,18 +82,32 @@ export interface MemberBoundingBox_mm {
   isVertical: boolean
 }
 
-// Internal helper — member endpoint envelope in along-wall coordinates.
-function memberAlongWall(m: CFSMember): {
+// Internal helper — member endpoint envelope in (along-wall x, local y).
+// Each endpoint is stored in world coords by the framing pass; we project
+// (x, z) onto the wall's local along-axis and shift y down by the wall's
+// level elevation. This keeps a 2.7 m wall's top track at local y = 2700
+// regardless of whether the wall sits on level 0 or level 5.
+function memberAlongWall(m: CFSMember, t: PanelTransform): {
   x0_mm: number
   x1_mm: number
   y0_mm: number
   y1_mm: number
 } {
+  const xs = worldPointToWallLocalX_mm(
+    { x_mm: m.start.x_mm, z_mm: m.start.z_mm },
+    t.wall,
+  )
+  const xe = worldPointToWallLocalX_mm(
+    { x_mm: m.end.x_mm, z_mm: m.end.z_mm },
+    t.wall,
+  )
+  const ys = m.start.y_mm - t.levelElevation_mm
+  const ye = m.end.y_mm - t.levelElevation_mm
   return {
-    x0_mm: Math.min(m.start.x_mm, m.end.x_mm),
-    x1_mm: Math.max(m.start.x_mm, m.end.x_mm),
-    y0_mm: Math.min(m.start.y_mm, m.end.y_mm),
-    y1_mm: Math.max(m.start.y_mm, m.end.y_mm),
+    x0_mm: Math.min(xs, xe),
+    x1_mm: Math.max(xs, xe),
+    y0_mm: Math.min(ys, ye),
+    y1_mm: Math.max(ys, ye),
   }
 }
 
@@ -77,7 +116,7 @@ export function memberBoundingBox_mm(
   section: CFSSection,
   t: PanelTransform,
 ): MemberBoundingBox_mm {
-  const { x0_mm, x1_mm, y0_mm, y1_mm } = memberAlongWall(member)
+  const { x0_mm, x1_mm, y0_mm, y1_mm } = memberAlongWall(member, t)
   const length_along_mm = x1_mm - x0_mm
   const length_vertical_mm = y1_mm - y0_mm
   const isVertical = length_vertical_mm > length_along_mm
@@ -118,7 +157,7 @@ export function memberCenter_mm(
   member: CFSMember,
   t: PanelTransform,
 ): PointMM {
-  const { x0_mm, x1_mm, y0_mm, y1_mm } = memberAlongWall(member)
+  const { x0_mm, x1_mm, y0_mm, y1_mm } = memberAlongWall(member, t)
   return t.toLocal_mm((x0_mm + x1_mm) / 2, (y0_mm + y1_mm) / 2)
 }
 
@@ -133,7 +172,7 @@ export function serviceHoleProjection_mm(
   member: CFSMember,
   t: PanelTransform,
 ): ServiceHoleProjection_mm {
-  const { x0_mm, x1_mm, y0_mm, y1_mm } = memberAlongWall(member)
+  const { x0_mm, x1_mm, y0_mm, y1_mm } = memberAlongWall(member, t)
   const isVertical = y1_mm - y0_mm > x1_mm - x0_mm
   const pos_mm = hole.positionAlongMember_mm
   const center = isVertical

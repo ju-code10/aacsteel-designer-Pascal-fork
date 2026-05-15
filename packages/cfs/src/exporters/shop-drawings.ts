@@ -37,6 +37,7 @@ import {
   sortedPanelsScene,
   type SceneLike,
 } from '../lib/scene-walk'
+import { panelDisplayContext } from '../lib/panel-display-context'
 import {
   makePanelTransform,
   memberBoundingBox_mm,
@@ -500,7 +501,12 @@ function drawPanelElevation(
   const regionH = ELEVATION_H
 
   // 0.25-in (18 pt) margin inside the region per §6.4.
-  const transform = makePanelTransform(panel)
+  const display = panelDisplayContext(scene, panel)
+  if (!display) {
+    drawElevationPlaceholder(page, ctx)
+    return
+  }
+  const transform = makePanelTransform(panel, display.wall, display.levelElevation_mm)
   const fit = scaleToFit(
     { width: transform.panelWidth_mm, height: transform.panelHeight_mm },
     { width: regionW, height: regionH, margin: 18 },

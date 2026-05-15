@@ -24,6 +24,7 @@ import { lengthForUnits, round2 } from '../lib/length-format'
 import { resolveHeaderType } from '../lib/header-type-resolver'
 import { planShippingMarks } from '../lib/shipping-marks'
 import { dxfFastenerScheduleLines } from '../lib/fastener-defaults'
+import { panelDisplayContext } from '../lib/panel-display-context'
 import {
   makePanelTransform,
   memberBoundingBox_mm,
@@ -135,7 +136,19 @@ function buildPanelDXF(
   }
 
   const members = membersInPanel(scene, panel.id)
-  const transform = makePanelTransform(panel)
+  const display = panelDisplayContext(scene, panel)
+  // Defensive: panels always have a framing+wall parent in v1. When the
+  // chain can't be resolved (corrupt scene), fall back to a synthetic
+  // wall at the origin along +x so the DXF still draws *something* —
+  // wrong position, but better than crashing the entire export.
+  const fallbackWall = {
+    id: 'panel-fallback',
+    start: [0, 0] as const,
+    end: [(panel.endAlongWall_mm - panel.startAlongWall_mm) / 1000, 0] as const,
+  }
+  const transform = display
+    ? makePanelTransform(panel, display.wall, display.levelElevation_mm)
+    : makePanelTransform(panel, fallbackWall)
 
   drawMembers(writer, members, sectionsById, transform, settings, marks)
   drawHoles(writer, members, scene, transform, settings)
