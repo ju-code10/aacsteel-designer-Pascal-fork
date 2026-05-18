@@ -1,7 +1,7 @@
 'use client'
 
-import { cfsMemberLength_mm } from '@pascal-app/cfs'
-import type { CFSMember, CFSWallFraming } from '@pascal-app/cfs'
+import { cfsMemberLength_mm, useWallTrim } from '@pascal-app/cfs'
+import type { CFSMember, CFSWallFraming, EndJunction } from '@pascal-app/cfs'
 import { EMPTY_OPENINGS_HINT, EMPTY_PANELS_HINT } from '../../lib/strings'
 
 const ROLE_COLOR: Record<CFSMember['role'], string> = {
@@ -59,6 +59,21 @@ function wallLength_mm(wall: WallLike): number {
   return Math.hypot(wall.end[0] - wall.start[0], wall.end[1] - wall.start[1]) * 1000
 }
 
+const JUNCTION_LABEL: Record<EndJunction['kind'], string> = {
+  free: 'Free',
+  'collinear-shared': 'Collinear (shared)',
+  'L-through': 'L · through',
+  'L-butt': 'L · butt',
+  'T-butt': 'T · butt',
+}
+
+function junctionSummary(j: EndJunction): string {
+  if (j.butt) {
+    return `${JUNCTION_LABEL[j.kind]} (− ${Math.round(j.butt.trim_mm)} mm)`
+  }
+  return JUNCTION_LABEL[j.kind]
+}
+
 export function WallFramingBody({
   wall,
   framing,
@@ -69,6 +84,7 @@ export function WallFramingBody({
   const height_mm = framing.wallHeight_mm ?? (wall.height != null ? wall.height * 1000 : null)
   const memberCount = framing.cachedMemberCount ?? members.length
   const totalWeight_kg = framing.cachedTotalWeight_kg ?? null
+  const trim = useWallTrim(framing.id as unknown as string)
 
   // §7.8.3 / §7.8.4 empty-state hints. Inferred from member data so the
   // hint surfaces even before we add full openings/panels sub-sections
@@ -111,6 +127,31 @@ export function WallFramingBody({
           <dd>{formatKg(totalWeight_kg)}</dd>
         </dl>
       </section>
+
+      {trim ? (
+        <section>
+          <h3 className="mb-1 font-semibold text-muted-foreground uppercase tracking-wide">
+            Junctions
+          </h3>
+          <dl className="grid grid-cols-2 gap-y-0.5">
+            <dt className="text-muted-foreground">Start</dt>
+            <dd>{junctionSummary(trim.startJunction)}</dd>
+            <dt className="text-muted-foreground">End</dt>
+            <dd>{junctionSummary(trim.endJunction)}</dd>
+            {trim.tPosts.length > 0 ? (
+              <>
+                <dt className="text-muted-foreground">T-posts</dt>
+                <dd>
+                  {trim.tPosts.length} ·{' '}
+                  {trim.tPosts
+                    .map((p) => `${Math.round(p.positionAlongWall_mm)} mm`)
+                    .join(', ')}
+                </dd>
+              </>
+            ) : null}
+          </dl>
+        </section>
+      ) : null}
 
       {showOpeningsHint || showPanelsHint ? (
         <section className="flex flex-col gap-2">

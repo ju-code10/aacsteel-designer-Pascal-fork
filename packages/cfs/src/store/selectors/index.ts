@@ -12,4 +12,11 @@ export {
   useMembersByRole,
   type WallFramingSelection,
 } from './use-wall-framing'
+export { useWallTrim } from './use-wall-trim'
+export {
+  type EndJunction,
+  type EndJunctionKind,
+  type InteriorJunction,
+  type WallTrim,
+} from '../../lib/corner-trim'
 export { createIdMemo } from './lib/memoize'

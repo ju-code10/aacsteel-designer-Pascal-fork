@@ -19,6 +19,11 @@ import {
   isCornerOwned,
   wallDirection,
 } from '../lib/corner-detect'
+import {
+  computeWallTrim,
+  type JunctionPeer,
+  type WallTrim,
+} from '../lib/corner-trim'
 import { diffMembers } from '../lib/diff-members'
 import { sumWeights } from '../lib/sum-weights'
 import {
@@ -74,6 +79,11 @@ function buildDesiredMembers(
    *  so studs on the upper wall sit directly above the lower wall's studs
    *  (stack-load alignment per CFS detailing best practice). */
   inheritedFieldStudPositions_mm: number[] | null,
+  /** L/T-corner lap: butt ends are shortened by the through wall's web
+   *  depth so chord studs sit adjacent rather than overlapping. T-through
+   *  walls additionally emit a chord-class stud at each T-post position
+   *  the butting wall fastens into. */
+  trim: WallTrim,
 ): DesiredMember[] {
   const length_mm = wallLengthFromPascalWall(wall)
   const height_mm =
@@ -82,29 +92,35 @@ function buildDesiredMembers(
   const desired: DesiredMember[] = []
   const z = levelElevation_mm
 
-  // Step 2 — tracks.
+  const startX = trim.startTrim_mm
+  const endX = length_mm - trim.endTrim_mm
+  const trimmedSpan_mm = Math.max(0, endX - startX)
+
+  // Step 2 — tracks. Tracks span the trimmed extent so the butt end stops
+  // at the through wall's inside face.
   desired.push({
     role: 'top-track',
     sectionId: trackSection.id,
-    start: localToWorld(wall, { x_mm: 0, y_mm: height_mm, z_mm: 0 }, z),
-    end: localToWorld(wall, { x_mm: length_mm, y_mm: height_mm, z_mm: 0 }, z),
+    start: localToWorld(wall, { x_mm: startX, y_mm: height_mm, z_mm: 0 }, z),
+    end: localToWorld(wall, { x_mm: endX, y_mm: height_mm, z_mm: 0 }, z),
     sourceOpeningId: null,
   })
   desired.push({
     role: 'bottom-track',
     sectionId: trackSection.id,
-    start: localToWorld(wall, { x_mm: 0, y_mm: 0, z_mm: 0 }, z),
-    end: localToWorld(wall, { x_mm: length_mm, y_mm: 0, z_mm: 0 }, z),
+    start: localToWorld(wall, { x_mm: startX, y_mm: 0, z_mm: 0 }, z),
+    end: localToWorld(wall, { x_mm: endX, y_mm: 0, z_mm: 0 }, z),
     sourceOpeningId: null,
   })
 
-  // Step 3 — chord studs at each end (subject to corner-ownership). When an
-  // opening sits at the wall edge (§1.4 edge-collapse), the chord at that end
-  // is promoted to role `king-stud` rather than emitting a separate king. The
-  // physical position is unchanged.
+  // Step 3 — chord studs at each (trimmed) end (subject to corner-ownership).
+  // When an opening sits at the wall edge (§1.4 edge-collapse), the chord at
+  // that end is promoted to role `king-stud` rather than emitting a separate
+  // king. At butt ends `ownsXChord` will be true because the chord sits inside
+  // the through wall's chord (different plan position, no merge).
   for (const [x, owns, promoteToKing] of [
-    [0, ownsStartChord, openingLayout.promoteStartChordToKing] as const,
-    [length_mm, ownsEndChord, openingLayout.promoteEndChordToKing] as const,
+    [startX, ownsStartChord, openingLayout.promoteStartChordToKing] as const,
+    [endX, ownsEndChord, openingLayout.promoteEndChordToKing] as const,
   ]) {
     if (!owns) continue
     const role: CFSMemberRole = promoteToKing ? 'king-stud' : 'chord-stud'
@@ -117,13 +133,37 @@ function buildDesiredMembers(
     })
   }
 
+  // Step 3.5 — T-posts. Each peer butting into our interior gets a chord-
+  // class stud on this wall at its junction x. Modelled as `chord-stud`
+  // because that's structurally what it is — full height, takes the load
+  // the butting wall transfers in.
+  for (const post of trim.tPosts) {
+    desired.push({
+      role: 'chord-stud',
+      sectionId: studSection.id,
+      start: localToWorld(wall, { x_mm: post.positionAlongWall_mm, y_mm: 0, z_mm: 0 }, z),
+      end: localToWorld(wall, { x_mm: post.positionAlongWall_mm, y_mm: height_mm, z_mm: 0 }, z),
+      sourceOpeningId: null,
+    })
+  }
+
   // Step 4 — field studs, minus those displaced by openings (§1.4
-  // stud-role coalescing). When the wall sits above another wall with
-  // a matching plan footprint, inherit that wall's stud positions so
-  // axial load transfers straight down (stack-load alignment).
-  const fieldStudXs =
-    inheritedFieldStudPositions_mm ?? findStudCandidatesAlongWall(spacing_mm, length_mm)
-  for (const x of fieldStudXs) {
+  // stud-role coalescing) or by T-posts within ±half-spacing. When the
+  // wall sits above another wall with a matching plan footprint, inherit
+  // that wall's stud positions so axial load transfers straight down
+  // (stack-load alignment). Inherited positions outside the trimmed span
+  // are filtered out — the butt end has no room for them.
+  const halfSpacing = spacing_mm / 2
+  const tPostXs = trim.tPosts.map((p) => p.positionAlongWall_mm)
+  const inTrimmedSpan = (x: number) => x > startX + 1 && x < endX - 1
+  const nearTPost = (x: number) =>
+    tPostXs.some((tx) => Math.abs(x - tx) < halfSpacing)
+  const rawFieldXs =
+    inheritedFieldStudPositions_mm ??
+    findStudCandidatesAlongWall(spacing_mm, trimmedSpan_mm).map((x) => x + startX)
+  for (const x of rawFieldXs) {
+    if (!inTrimmedSpan(x)) continue
+    if (nearTPost(x)) continue
     if (fieldStudExcluded(x, openingLayout.fieldStudExclusionRanges)) continue
     desired.push({
       role: 'stud',
@@ -217,6 +257,77 @@ function childrenOfType<T>(
     }
   }
   return out
+}
+
+interface JunctionPeerCollection {
+  ownSceneIndex: number
+  peers: JunctionPeer[]
+}
+
+/**
+ * Walk every other CFS wall framing and build the richer peer descriptor that
+ * `corner-trim.computeWallTrim` consumes — scene insertion index (for the
+ * "first-placed runs through" L-corner rule), full peer wall extents (for
+ * T-junction detection where a peer endpoint lands on our interior), and the
+ * peer's stud web depth (the trim amount when we butt into it).
+ */
+function collectJunctionPeers(
+  scene: SceneLike,
+  ownFramingId: string,
+  library: CFSMemberLibrary,
+  settings: CFSProjectSettings,
+  slabFn: SlabElevationForWallFn,
+): JunctionPeerCollection {
+  const peers: JunctionPeer[] = []
+  let ownSceneIndex = -1
+  let index = -1
+  for (const n of Object.values(scene.nodes)) {
+    const t = (n as { type?: string }).type
+    if (t !== 'cfs_wall_framing') continue
+    index += 1
+    const framing = n as unknown as CFSWallFraming
+    if (framing.id === ownFramingId) {
+      ownSceneIndex = index
+      continue
+    }
+    const wall = scene.nodes[framing.parentId] as unknown as
+      | PascalWallLike
+      | undefined
+    if (!wall || !wall.start || !wall.end) continue
+    const peerLength_mm = wallLengthFromPascalWall(wall)
+    if (peerLength_mm === 0) continue
+    const studSectionId = framing.studSectionId ?? settings.defaultStudSection
+    const studSection = library.sections.find((s) => s.id === studSectionId)
+    // Fall back to the project's default stud web depth if we cannot resolve.
+    // The peer is still real geometrically; we just have no exact trim figure.
+    const defaultSection = library.sections.find(
+      (s) => s.id === settings.defaultStudSection,
+    )
+    const webDepth_mm =
+      studSection?.properties.webDepth_mm ??
+      defaultSection?.properties.webDepth_mm ??
+      0
+    const peerElevation_mm =
+      wallLevelElevation_mm(scene, wall.id, slabFn) +
+      Math.max(0, slabFn(wall.id))
+    peers.push({
+      framingId: framing.id,
+      sceneIndex: index,
+      start: chordPositionFromWorld(
+        localToWorld(wall, { x_mm: 0, y_mm: 0, z_mm: 0 }, peerElevation_mm),
+      ),
+      end: chordPositionFromWorld(
+        localToWorld(
+          wall,
+          { x_mm: peerLength_mm, y_mm: 0, z_mm: 0 },
+          peerElevation_mm,
+        ),
+      ),
+      direction: wallDirection(wall),
+      studWebDepth_mm: webDepth_mm,
+    })
+  }
+  return { ownSceneIndex, peers }
 }
 
 function collectPeerChordPositions(
@@ -393,19 +504,51 @@ function runFramingPassInner(): FramingProcessResult[] {
     const elevation_mm = levelBase_mm + thisWallSlab_mm
 
     const peers = collectPeerChordPositions(sceneLike, framingId, slabFn)
-    const startWorld = chordPositionFromWorld(
+    const wallLength_mm = wallLengthFromPascalWall(wall)
+    const ownStartWorld = chordPositionFromWorld(
       localToWorld(wall, { x_mm: 0, y_mm: 0, z_mm: 0 }, elevation_mm),
     )
-    const endWorld = chordPositionFromWorld(
+    const ownEndWorld = chordPositionFromWorld(
+      localToWorld(wall, { x_mm: wallLength_mm, y_mm: 0, z_mm: 0 }, elevation_mm),
+    )
+    const wallDir = wallDirection(wall)
+
+    // L/T-corner lap: classify each end and our interior. The butt end will
+    // be shortened by the through wall's web depth; T-through walls get a
+    // chord-class stud at the junction position.
+    const junctions = collectJunctionPeers(
+      sceneLike,
+      framingId,
+      library,
+      settings,
+      slabFn,
+    )
+    const trim = computeWallTrim({
+      ownFramingId: framingId,
+      ownSceneIndex: junctions.ownSceneIndex,
+      ownStart: ownStartWorld,
+      ownEnd: ownEndWorld,
+      ownDirection: wallDir,
+      peers: junctions.peers,
+    })
+
+    // Chord-ownership is checked at the *trimmed* end positions so the butt
+    // wall's chord doesn't false-merge with the through wall's chord at the
+    // architectural endpoint (where they'd test as coincident). The trimmed
+    // position is offset by the through-wall web depth into our wall, well
+    // outside any chord coincidence tolerance.
+    const trimmedStartWorld = chordPositionFromWorld(
+      localToWorld(wall, { x_mm: trim.startTrim_mm, y_mm: 0, z_mm: 0 }, elevation_mm),
+    )
+    const trimmedEndWorld = chordPositionFromWorld(
       localToWorld(
         wall,
-        { x_mm: wallLengthFromPascalWall(wall), y_mm: 0, z_mm: 0 },
+        { x_mm: wallLength_mm - trim.endTrim_mm, y_mm: 0, z_mm: 0 },
         elevation_mm,
       ),
     )
-    const wallDir = wallDirection(wall)
-    const ownsStart = isCornerOwned(framingId, startWorld, wallDir, peers)
-    const ownsEnd = isCornerOwned(framingId, endWorld, wallDir, peers)
+    const ownsStart = isCornerOwned(framingId, trimmedStartWorld, wallDir, peers)
+    const ownsEnd = isCornerOwned(framingId, trimmedEndWorld, wallDir, peers)
 
     // Slice 4: run the opening layout *before* building the desired list so
     // chord promotions, field-stud exclusions, and opening-derived members
@@ -446,6 +589,7 @@ function runFramingPassInner(): FramingProcessResult[] {
       openingLayout,
       elevation_mm,
       inheritedStudXs,
+      trim,
     )
     const desired = materialiseDesired(framing, desiredRaw)
     const existing = childrenOfType<CFSMember>(sceneState.nodes, framingId, 'cfs_member')

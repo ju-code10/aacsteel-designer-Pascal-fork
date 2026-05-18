@@ -29,6 +29,11 @@ export {
   useWallFramingSelection,
   useMembersByRole,
   type WallFramingSelection,
+  useWallTrim,
+  type EndJunction,
+  type EndJunctionKind,
+  type InteriorJunction,
+  type WallTrim,
   createIdMemo,
 } from './store/selectors'
 export {

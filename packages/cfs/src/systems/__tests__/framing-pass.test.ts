@@ -692,3 +692,262 @@ describe('cascade-delete — slice 5.1', () => {
     for (const id of allMemberIds) expect(nodes[id as never]).toBeUndefined()
   })
 })
+
+interface SecondWallSeed {
+  startM: readonly [number, number]
+  endM: readonly [number, number]
+  heightM?: number
+}
+
+function addPerpendicularWall(seed: SecondWallSeed): { framingId: string; wallId: string } {
+  const framingId = uuid()
+  const wallId = `wall_extra_${nextUuid}`
+  useScene.setState((s) => ({
+    nodes: {
+      ...s.nodes,
+      [wallId]: {
+        type: 'wall',
+        id: wallId,
+        parentId: SITE_ID,
+        children: [],
+        start: seed.startM,
+        end: seed.endM,
+        height: seed.heightM ?? 2.7,
+      } as never,
+      [framingId]: {
+        type: 'cfs_wall_framing',
+        id: framingId,
+        parentId: wallId,
+        studSpacing_mm: null,
+        studSectionId: null,
+        trackSectionId: null,
+        defaultHeaderType: null,
+        wallHeight_mm: null,
+      } as unknown as CFSWallFraming as never,
+    },
+  }))
+  useScene.getState().dirtyNodes.add(framingId as never)
+  return { framingId, wallId }
+}
+
+function trackEndsAlongWall_mm(
+  framingId: string,
+  wallStart_mm: readonly [number, number],
+): { startX: number; endX: number } | null {
+  // Project the bottom track's start/end back onto the wall's local x axis
+  // so callers can assert on the trimmed extent regardless of wall direction.
+  const members = membersOf(framingId).filter((m) => m.role === 'bottom-track')
+  if (members.length === 0) return null
+  const bottom = members[0]!
+  const ws = wallStart_mm
+  // Local x is distance from wall start along the wall direction.
+  const sx = Math.hypot(bottom.start.x_mm - ws[0], bottom.start.z_mm - ws[1])
+  const ex = Math.hypot(bottom.end.x_mm - ws[0], bottom.end.z_mm - ws[1])
+  return { startX: Math.min(sx, ex), endX: Math.max(sx, ex) }
+}
+
+describe('runFramingPass — L/T corner lap (first-placed runs through)', () => {
+  beforeEach(() => {
+    resetAll()
+  })
+
+  it('L-CORNER: first-placed wall A is unchanged; second-placed wall B is shortened by A web depth', async () => {
+    // A: (0,0)→(3.0,0) east, 3000mm long. Then B: (3.0,0)→(3.0,3.0) north,
+    // 3000mm long. B should butt; its bottom-track should start at A's web
+    // depth (92mm for 362S162-54) inside B's wall, not at B's start.
+    const { framingId: framingA, wallId: wallA } = await seedScene({
+      wallLength_m: 3.0,
+      studSpacingOverride_mm: 600,
+    })
+    const { framingId: framingB, wallId: wallB } = addPerpendicularWall({
+      startM: [3.0, 0],
+      endM: [3.0, 3.0],
+    })
+    runFramingPass()
+
+    const wallANode = useScene.getState().nodes[wallA as never] as unknown as { start: readonly [number, number] }
+    const wallBNode = useScene.getState().nodes[wallB as never] as unknown as { start: readonly [number, number] }
+    const extA = trackEndsAlongWall_mm(framingA, [wallANode.start[0] * 1000, wallANode.start[1] * 1000])
+    const extB = trackEndsAlongWall_mm(framingB, [wallBNode.start[0] * 1000, wallBNode.start[1] * 1000])
+    expect(extA).not.toBeNull()
+    expect(extB).not.toBeNull()
+    // A is through: span [0, 3000].
+    expect(extA!.startX).toBeCloseTo(0, 0)
+    expect(extA!.endX).toBeCloseTo(3000, 0)
+    // B is butt: span shortened by 362S162-54 web depth = ~92.075 mm.
+    expect(extB!.startX).toBeGreaterThan(50)
+    expect(extB!.startX).toBeLessThan(150)
+    expect(extB!.endX).toBeCloseTo(3000, 0)
+  })
+
+  it('L-CORNER: B chord stud sits at the trimmed start, not at the architectural corner', async () => {
+    const { framingId: framingA } = await seedScene({
+      wallLength_m: 3.0,
+      studSpacingOverride_mm: 600,
+    })
+    const { framingId: framingB } = addPerpendicularWall({
+      startM: [3.0, 0],
+      endM: [3.0, 3.0],
+    })
+    runFramingPass()
+
+    const chordsA = membersOf(framingA).filter((m) => m.role === 'chord-stud')
+    const chordsB = membersOf(framingB).filter((m) => m.role === 'chord-stud')
+    expect(chordsA.length).toBe(2)
+    expect(chordsB.length).toBe(2)
+
+    // B's start-chord world position: should be at (3000, ~92, 0) — 92mm
+    // INSIDE B's wall from the architectural corner (3000, 0).
+    const xsB = chordsB.map((c) => ({ x: c.start.x_mm, z: c.start.z_mm }))
+    xsB.sort((a, b) => a.z - b.z)
+    const buttChord = xsB[0]!
+    expect(buttChord.x).toBeCloseTo(3000, 0)
+    expect(buttChord.z).toBeGreaterThan(50)
+    expect(buttChord.z).toBeLessThan(150)
+  })
+
+  it('T-JUNCTION: through wall emits a T-post chord stud at the junction position', async () => {
+    // Wall A: (0,0)→(4.2,0), 4200mm long. Wall B: (2.1,0)→(2.1,3.0) north,
+    // starting at A's midpoint (T-butt). A should emit a chord-stud at
+    // x=2100, in addition to its two end chords.
+    const { framingId: framingA } = await seedScene({
+      wallLength_m: 4.2,
+      studSpacingOverride_mm: 600,
+    })
+    const { framingId: framingB } = addPerpendicularWall({
+      startM: [2.1, 0],
+      endM: [2.1, 3.0],
+    })
+    runFramingPass()
+
+    const chordsA = membersOf(framingA).filter((m) => m.role === 'chord-stud')
+    // 2 end chords + 1 T-post = 3.
+    expect(chordsA.length).toBe(3)
+    const tPost = chordsA.find((c) => c.start.x_mm > 1500 && c.start.x_mm < 2500)
+    expect(tPost).toBeDefined()
+    expect(tPost!.start.x_mm).toBeCloseTo(2100, 0)
+    expect(tPost!.start.z_mm).toBeCloseTo(0, 0)
+
+    // B is T-butt — its start should be trimmed by ~92mm.
+    const tracksB = membersOf(framingB).filter((m) => m.role === 'bottom-track')
+    expect(tracksB.length).toBe(1)
+    // Length of B's bottom track: 3000mm − web depth ≈ 2908mm.
+    const trackLen = Math.hypot(
+      tracksB[0]!.end.x_mm - tracksB[0]!.start.x_mm,
+      tracksB[0]!.end.z_mm - tracksB[0]!.start.z_mm,
+    )
+    expect(trackLen).toBeLessThan(2950)
+    expect(trackLen).toBeGreaterThan(2850)
+  })
+
+  it('T-JUNCTION: field stud near the T-post is displaced (no duplicate stud)', async () => {
+    // A: 4800mm long at 600mm spacing → field-stud candidates at
+    // 600, 1200, 1800, 2400, 3000, 3600, 4200. Put a T-post at x=2400
+    // (B starting at (2.4, 0)). The candidate at 2400 should be replaced
+    // by the chord-class T-post — no field stud emitted at 2400.
+    const { framingId: framingA } = await seedScene({
+      wallLength_m: 4.8,
+      studSpacingOverride_mm: 600,
+    })
+    addPerpendicularWall({
+      startM: [2.4, 0],
+      endM: [2.4, 3.0],
+    })
+    runFramingPass()
+
+    const studsA = membersOf(framingA).filter((m) => m.role === 'stud')
+    const studXs = studsA.map((m) => Math.round(m.start.x_mm)).sort((a, b) => a - b)
+    // 2400 should NOT appear in the field stud xs — it became a T-post.
+    expect(studXs).not.toContain(2400)
+    // Other candidates remain.
+    expect(studXs).toContain(600)
+    expect(studXs).toContain(1200)
+    expect(studXs).toContain(3000)
+    expect(studXs).toContain(3600)
+    expect(studXs).toContain(4200)
+  })
+
+  it('L-CORNER: swapped placement order swaps which wall trims', async () => {
+    // Insert the perpendicular wall FIRST (lower sceneIndex), then the
+    // long east-running wall. The east wall should now be the butt at the
+    // shared corner, trimmed by the north wall's web depth at its end.
+    // We use the same seed helper but craft a fresh scene manually so the
+    // insertion order matches the test intent.
+    const framingId = uuid() // north wall — placed first → through
+    const wallId = `wall_north_${nextUuid}`
+    const projectId = uuid()
+    const library = await useCFS.getState().loadLibrary(ssmaLibraryJson)
+    void library // ensure library load completes
+    const lib = Object.values(useCFS.getState().memberLibraries)[0]!
+    const studSection = lib.sections.find((s) => s.shape === 'C' && s.designation === '362S162-54')!
+    const trackSection = lib.sections.find((s) => s.shape === 'U' && s.designation === '362T125-54')!
+    const settings = CFSProjectSettings.parse({
+      defaultStudSection: studSection.id,
+      defaultTrackSection: trackSection.id,
+    })
+    const project = CFSProject.parse({
+      type: 'cfs_project',
+      id: projectId,
+      parentId: SITE_ID,
+      schemaVersion: '1.0.0',
+      name: 'swap-order test',
+      settings,
+      libraries: [lib.id],
+      activeLibraryId: lib.id,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      metadata: {},
+    })
+    useScene.setState((s) => ({
+      nodes: {
+        ...s.nodes,
+        [SITE_ID]: { type: 'site', id: SITE_ID, parentId: null, children: [] } as never,
+        [projectId]: project as unknown as never,
+        // North wall (placed first → through).
+        [wallId]: {
+          type: 'wall',
+          id: wallId,
+          parentId: SITE_ID,
+          children: [],
+          start: [3.0, 0],
+          end: [3.0, 3.0],
+          height: 2.7,
+        } as never,
+        [framingId]: {
+          type: 'cfs_wall_framing',
+          id: framingId,
+          parentId: wallId,
+          studSpacing_mm: 600,
+          studSectionId: null,
+          trackSectionId: null,
+          defaultHeaderType: null,
+          wallHeight_mm: null,
+        } as unknown as CFSWallFraming as never,
+      },
+      rootNodeIds: [SITE_ID as never],
+    }))
+    useScene.temporal.getState().clear()
+    useScene.getState().dirtyNodes.add(framingId as never)
+
+    const { framingId: eastFraming, wallId: eastWall } = addPerpendicularWall({
+      startM: [0, 0],
+      endM: [3.0, 0],
+    })
+
+    runFramingPass()
+
+    const eastWallNode = useScene.getState().nodes[eastWall as never] as unknown as { start: readonly [number, number] }
+    const eastExt = trackEndsAlongWall_mm(eastFraming, [eastWallNode.start[0] * 1000, eastWallNode.start[1] * 1000])
+    expect(eastExt).not.toBeNull()
+    // The east wall is now the butt at its END (where it meets the north wall).
+    expect(eastExt!.startX).toBeCloseTo(0, 0)
+    expect(eastExt!.endX).toBeGreaterThan(2800)
+    expect(eastExt!.endX).toBeLessThan(2950)
+
+    // The north wall (placed first) is through: no trim.
+    const northWallNode = useScene.getState().nodes[wallId as never] as unknown as { start: readonly [number, number] }
+    const northExt = trackEndsAlongWall_mm(framingId, [northWallNode.start[0] * 1000, northWallNode.start[1] * 1000])
+    expect(northExt!.startX).toBeCloseTo(0, 0)
+    expect(northExt!.endX).toBeCloseTo(3000, 0)
+  })
+})
