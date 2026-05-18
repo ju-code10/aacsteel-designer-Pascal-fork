@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'bun:test'
-import { computeWallTrim, type JunctionPeer } from '../corner-trim'
+import {
+  TRIM_FRACTION_OF_THROUGH_WEB,
+  computeWallTrim,
+  type JunctionPeer,
+} from '../corner-trim'
 
 const east = { x: 1, z: 0 }
 const north = { x: 0, z: 1 }
 const WEB_92 = 92 // through-wall web depth for a 362-series stud (mm)
 const WEB_152 = 152 // through-wall web depth for a 600-series stud (mm)
+const TRIM_92 = WEB_92 * TRIM_FRACTION_OF_THROUGH_WEB
+const TRIM_152 = WEB_152 * TRIM_FRACTION_OF_THROUGH_WEB
 
 function p(x: number, z: number, y = 0) {
   return { x_mm: x, y_mm: y, z_mm: z }
@@ -75,7 +81,7 @@ describe('computeWallTrim — L corner', () => {
       peers: [peerA],
     })
     expect(trimB.startJunction.kind).toBe('L-butt')
-    expect(trimB.startTrim_mm).toBe(WEB_92)
+    expect(trimB.startTrim_mm).toBe(TRIM_92)
     expect(trimB.endJunction.kind).toBe('free')
     expect(trimB.endTrim_mm).toBe(0)
     expect(trimB.startJunction.butt?.peerFramingId).toBe('a')
@@ -108,7 +114,7 @@ describe('computeWallTrim — L corner', () => {
       peers: [peerBFromA],
     })
     expect(trimA.endJunction.kind).toBe('L-butt')
-    expect(trimA.endTrim_mm).toBe(WEB_92)
+    expect(trimA.endTrim_mm).toBe(TRIM_92)
     const trimB = computeWallTrim({
       ownFramingId: 'b',
       ownSceneIndex: 0,
@@ -121,9 +127,10 @@ describe('computeWallTrim — L corner', () => {
     expect(trimB.startTrim_mm).toBe(0)
   })
 
-  it('trim amount is the THROUGH wall web depth, not own', () => {
+  it('trim amount is half the THROUGH wall web depth, not own', () => {
     // Through wall uses a deep 600-series section (WEB_152); butting wall
-    // uses a 362-series (WEB_92). The butt trim should be 152, not 92.
+    // uses a 362-series (WEB_92). The butt trim should be WEB_152/2 = 76,
+    // not WEB_92/2 = 46.
     const peerThrough: JunctionPeer = {
       framingId: 'a',
       sceneIndex: 0,
@@ -140,7 +147,7 @@ describe('computeWallTrim — L corner', () => {
       ownDirection: north,
       peers: [peerThrough],
     })
-    expect(trimButt.startTrim_mm).toBe(WEB_152)
+    expect(trimButt.startTrim_mm).toBe(TRIM_152)
   })
 
   it('collinear walls sharing an endpoint do not trim each other', () => {
@@ -235,7 +242,7 @@ describe('computeWallTrim — T junction', () => {
       peers: [peerA],
     })
     expect(trimB.startJunction.kind).toBe('T-butt')
-    expect(trimB.startTrim_mm).toBe(WEB_92)
+    expect(trimB.startTrim_mm).toBe(TRIM_92)
     expect(trimB.startJunction.butt?.peerFramingId).toBe('a')
     expect(trimB.endJunction.kind).toBe('free')
   })
@@ -260,7 +267,7 @@ describe('computeWallTrim — T junction', () => {
       peers: [peerA],
     })
     expect(trimB.startJunction.kind).toBe('T-butt')
-    expect(trimB.startTrim_mm).toBe(WEB_92)
+    expect(trimB.startTrim_mm).toBe(TRIM_92)
   })
 
   it('peer endpoint very close to our endpoint is NOT a T-junction', () => {

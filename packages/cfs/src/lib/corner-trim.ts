@@ -3,8 +3,16 @@
 // Pascal stores both walls in an L-corner as architectural centerlines
 // of equal length. In real CFS construction one wall runs through and
 // the other butts into its side, so the butting wall's stud-layout
-// extent has to stop short by the through-wall's stud web depth — or
-// chord studs from both walls collide in the corner volume.
+// extent has to stop short or chord studs from both walls collide in
+// the corner volume.
+//
+// Trim amount: HALF the through wall's stud web depth. The architectural
+// corner is at the through wall's centerline; the through wall's near
+// face is half-a-web-depth inside (toward us). The butt wall's track
+// ends at that face. The butt chord sits at the same x as the track end,
+// so its flange overlaps the through-wall chord's flange — the standard
+// "back-to-back" L-corner detail in CFS practice. Using the *full* web
+// depth would leave a visible gap between the chord studs.
 //
 // "First-placed runs through" rule (chosen by the user): peers are
 // compared by their scene insertion index. A wall with a smaller index
@@ -18,6 +26,12 @@
 // fasten into.
 
 import { CHORD_PLAN_TOLERANCE_MM, CHORD_PARALLEL_DOT } from './corner-detect'
+
+/** Fraction of the through wall's stud web depth that the butt wall is
+ *  shortened by — 0.5 puts the butt's end at the through wall's near face
+ *  (the architectural centerline is at half-web in either direction).
+ *  Exported so tests and the inspector can reason about the trim. */
+export const TRIM_FRACTION_OF_THROUGH_WEB = 0.5
 
 export interface JunctionPeer {
   framingId: string
@@ -177,7 +191,7 @@ function classifyOneEnd(
           kind: 'L-butt',
           butt: {
             peerFramingId: earliest.framingId,
-            trim_mm: earliest.studWebDepth_mm,
+            trim_mm: earliest.studWebDepth_mm * TRIM_FRACTION_OF_THROUGH_WEB,
           },
         }
       }
@@ -196,7 +210,7 @@ function classifyOneEnd(
         kind: 'T-butt',
         butt: {
           peerFramingId: peer.framingId,
-          trim_mm: peer.studWebDepth_mm,
+          trim_mm: peer.studWebDepth_mm * TRIM_FRACTION_OF_THROUGH_WEB,
         },
       }
     }
