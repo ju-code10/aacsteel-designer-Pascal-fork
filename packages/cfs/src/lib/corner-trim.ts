@@ -62,8 +62,16 @@ export type EndJunctionKind =
 
 export interface EndJunction {
   kind: EndJunctionKind
-  /** Set for L-butt and T-butt — describes which peer this end butts into. */
-  butt?: { peerFramingId: string; trim_mm: number }
+  /** Set for L-butt and T-butt — describes which peer this end butts into.
+   *  `lateralOffsetDirection` is set only for L-butt and is the unit vector
+   *  in plan (x, z) pointing from the corner toward the through wall's body
+   *  — the direction the butting wall's framing should be shifted so its
+   *  outer face aligns with the through wall's outer face. */
+  butt?: {
+    peerFramingId: string
+    trim_mm: number
+    lateralOffsetDirection?: { x: number; z: number }
+  }
 }
 
 export interface InteriorJunction {
@@ -80,6 +88,11 @@ export interface WallTrim {
   endJunction: EndJunction
   /** Through-wall T-post positions (interior x's on this wall). */
   tPosts: InteriorJunction[]
+  /** Plan offset to apply uniformly to every member in this wall, in mm.
+   *  Aggregates the lateralOffsetDirection contributions from butt ends.
+   *  Always zero for walls with no L-butt ends. */
+  lateralOffsetX_mm: number
+  lateralOffsetZ_mm: number
 }
 
 const ELEVATION_TOLERANCE_MM = 1
@@ -194,11 +207,27 @@ function classifyOneEnd(
       )
       if (earliest.sceneIndex < ownSceneIndex) {
         // Peer placed first → peer is through, we butt.
+        // Lateral offset direction: from this corner toward the through
+        // wall's body. The through wall's endpoint coincides with this
+        // corner; whichever of its endpoints is closer marks the corner,
+        // and the further one points into the body.
+        const dStart = Math.hypot(
+          earliest.start.x_mm - endPos.x_mm,
+          earliest.start.z_mm - endPos.z_mm,
+        )
+        const dEnd = Math.hypot(
+          earliest.end.x_mm - endPos.x_mm,
+          earliest.end.z_mm - endPos.z_mm,
+        )
+        const lateralOffsetDirection = dStart <= dEnd
+          ? { x: earliest.direction.x, z: earliest.direction.z }
+          : { x: -earliest.direction.x, z: -earliest.direction.z }
         return {
           kind: 'L-butt',
           butt: {
             peerFramingId: earliest.framingId,
             trim_mm: earliest.studWebDepth_mm * TRIM_FRACTION_OF_THROUGH_WEB,
+            lateralOffsetDirection,
           },
         }
       }
@@ -259,11 +288,38 @@ export function computeWallTrim(args: ClassifyArgs): WallTrim {
     dedupedTPosts.push(t)
   }
 
+  // Aggregate lateral offset from L-butt ends. Each butting end votes a
+  // direction × magnitude in plan; we sum and use the result as-is. For
+  // an exterior rectangular building, both ends agree (the building
+  // interior is the same direction), so the sum doubles the half-web
+  // magnitude — divide by 2 to keep the single-end magnitude. Walls with
+  // only one L-butt end keep the full magnitude.
+  const offsetVotes: { x: number; z: number }[] = []
+  for (const j of [startJunction, endJunction]) {
+    if (j.kind !== 'L-butt') continue
+    const dir = j.butt?.lateralOffsetDirection
+    const mag = j.butt?.trim_mm
+    if (!dir || mag == null) continue
+    offsetVotes.push({ x: dir.x * mag, z: dir.z * mag })
+  }
+  let lateralOffsetX_mm = 0
+  let lateralOffsetZ_mm = 0
+  if (offsetVotes.length > 0) {
+    for (const v of offsetVotes) {
+      lateralOffsetX_mm += v.x
+      lateralOffsetZ_mm += v.z
+    }
+    lateralOffsetX_mm /= offsetVotes.length
+    lateralOffsetZ_mm /= offsetVotes.length
+  }
+
   return {
     startTrim_mm: startJunction.butt?.trim_mm ?? 0,
     endTrim_mm: endJunction.butt?.trim_mm ?? 0,
     startJunction,
     endJunction,
     tPosts: dedupedTPosts,
+    lateralOffsetX_mm,
+    lateralOffsetZ_mm,
   }
 }

@@ -101,20 +101,33 @@ function buildDesiredMembers(
   const endX = length_mm - trim.endTrim_mm
   const trimmedSpan_mm = Math.max(0, endX - startX)
 
+  // L-butt lateral offset: shift every member uniformly in plan so the
+  // butting wall's outer face is flush with the through wall's outer
+  // face (instead of straddling the architectural centerline). Applied
+  // to all members of this wall — tracks, chords, T-posts, field studs,
+  // openings — since the wall moves together as a rigid frame.
+  const ox = trim.lateralOffsetX_mm
+  const oz = trim.lateralOffsetZ_mm
+  const offsetPoint = (p: CFSPoint3D): CFSPoint3D => ({
+    x_mm: p.x_mm + ox,
+    y_mm: p.y_mm,
+    z_mm: p.z_mm + oz,
+  })
+
   // Step 2 — tracks. Tracks span the trimmed extent so the butt end stops
   // at the through wall's inside face.
   desired.push({
     role: 'top-track',
     sectionId: trackSection.id,
-    start: localToWorld(wall, { x_mm: startX, y_mm: height_mm, z_mm: 0 }, z),
-    end: localToWorld(wall, { x_mm: endX, y_mm: height_mm, z_mm: 0 }, z),
+    start: offsetPoint(localToWorld(wall, { x_mm: startX, y_mm: height_mm, z_mm: 0 }, z)),
+    end: offsetPoint(localToWorld(wall, { x_mm: endX, y_mm: height_mm, z_mm: 0 }, z)),
     sourceOpeningId: null,
   })
   desired.push({
     role: 'bottom-track',
     sectionId: trackSection.id,
-    start: localToWorld(wall, { x_mm: startX, y_mm: 0, z_mm: 0 }, z),
-    end: localToWorld(wall, { x_mm: endX, y_mm: 0, z_mm: 0 }, z),
+    start: offsetPoint(localToWorld(wall, { x_mm: startX, y_mm: 0, z_mm: 0 }, z)),
+    end: offsetPoint(localToWorld(wall, { x_mm: endX, y_mm: 0, z_mm: 0 }, z)),
     sourceOpeningId: null,
   })
 
@@ -138,8 +151,8 @@ function buildDesiredMembers(
     desired.push({
       role,
       sectionId: studSection.id,
-      start: localToWorld(wall, { x_mm: x, y_mm: 0, z_mm: 0 }, z),
-      end: localToWorld(wall, { x_mm: x, y_mm: height_mm, z_mm: 0 }, z),
+      start: offsetPoint(localToWorld(wall, { x_mm: x, y_mm: 0, z_mm: 0 }, z)),
+      end: offsetPoint(localToWorld(wall, { x_mm: x, y_mm: height_mm, z_mm: 0 }, z)),
       orientation_deg: isStart ? 180 : 0,
       sourceOpeningId: null,
     })
@@ -153,8 +166,8 @@ function buildDesiredMembers(
     desired.push({
       role: 'chord-stud',
       sectionId: studSection.id,
-      start: localToWorld(wall, { x_mm: post.positionAlongWall_mm, y_mm: 0, z_mm: 0 }, z),
-      end: localToWorld(wall, { x_mm: post.positionAlongWall_mm, y_mm: height_mm, z_mm: 0 }, z),
+      start: offsetPoint(localToWorld(wall, { x_mm: post.positionAlongWall_mm, y_mm: 0, z_mm: 0 }, z)),
+      end: offsetPoint(localToWorld(wall, { x_mm: post.positionAlongWall_mm, y_mm: height_mm, z_mm: 0 }, z)),
       sourceOpeningId: null,
     })
   }
@@ -180,8 +193,8 @@ function buildDesiredMembers(
     desired.push({
       role: 'stud',
       sectionId: studSection.id,
-      start: localToWorld(wall, { x_mm: x, y_mm: 0, z_mm: 0 }, z),
-      end: localToWorld(wall, { x_mm: x, y_mm: height_mm, z_mm: 0 }, z),
+      start: offsetPoint(localToWorld(wall, { x_mm: x, y_mm: 0, z_mm: 0 }, z)),
+      end: offsetPoint(localToWorld(wall, { x_mm: x, y_mm: height_mm, z_mm: 0 }, z)),
       sourceOpeningId: null,
     })
   }
@@ -193,8 +206,8 @@ function buildDesiredMembers(
     desired.push({
       role: m.role,
       sectionId: m.sectionId,
-      start: localToWorld(wall, { x_mm: m.startX_mm, y_mm: m.startY_mm, z_mm: 0 }, z),
-      end: localToWorld(wall, { x_mm: m.endX_mm, y_mm: m.endY_mm, z_mm: 0 }, z),
+      start: offsetPoint(localToWorld(wall, { x_mm: m.startX_mm, y_mm: m.startY_mm, z_mm: 0 }, z)),
+      end: offsetPoint(localToWorld(wall, { x_mm: m.endX_mm, y_mm: m.endY_mm, z_mm: 0 }, z)),
       sourceOpeningId: m.sourceOpeningId,
     })
   }

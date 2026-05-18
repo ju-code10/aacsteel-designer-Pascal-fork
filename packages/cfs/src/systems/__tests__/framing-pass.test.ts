@@ -733,16 +733,21 @@ function addPerpendicularWall(seed: SecondWallSeed): { framingId: string; wallId
 function trackEndsAlongWall_mm(
   framingId: string,
   wallStart_mm: readonly [number, number],
+  wallDir: readonly [number, number],
 ): { startX: number; endX: number } | null {
-  // Project the bottom track's start/end back onto the wall's local x axis
-  // so callers can assert on the trimmed extent regardless of wall direction.
+  // Project the bottom track's start/end onto the wall direction so the
+  // returned span is the on-axis extent even when the framing has a
+  // perpendicular lateral offset (L-butt walls shift sideways).
   const members = membersOf(framingId).filter((m) => m.role === 'bottom-track')
   if (members.length === 0) return null
   const bottom = members[0]!
   const ws = wallStart_mm
-  // Local x is distance from wall start along the wall direction.
-  const sx = Math.hypot(bottom.start.x_mm - ws[0], bottom.start.z_mm - ws[1])
-  const ex = Math.hypot(bottom.end.x_mm - ws[0], bottom.end.z_mm - ws[1])
+  const sx =
+    (bottom.start.x_mm - ws[0]) * wallDir[0] +
+    (bottom.start.z_mm - ws[1]) * wallDir[1]
+  const ex =
+    (bottom.end.x_mm - ws[0]) * wallDir[0] +
+    (bottom.end.z_mm - ws[1]) * wallDir[1]
   return { startX: Math.min(sx, ex), endX: Math.max(sx, ex) }
 }
 
@@ -766,10 +771,28 @@ describe('runFramingPass — L/T corner lap (first-placed runs through)', () => 
     })
     runFramingPass()
 
-    const wallANode = useScene.getState().nodes[wallA as never] as unknown as { start: readonly [number, number] }
-    const wallBNode = useScene.getState().nodes[wallB as never] as unknown as { start: readonly [number, number] }
-    const extA = trackEndsAlongWall_mm(framingA, [wallANode.start[0] * 1000, wallANode.start[1] * 1000])
-    const extB = trackEndsAlongWall_mm(framingB, [wallBNode.start[0] * 1000, wallBNode.start[1] * 1000])
+    const wallANode = useScene.getState().nodes[wallA as never] as unknown as { start: readonly [number, number]; end: readonly [number, number] }
+    const wallBNode = useScene.getState().nodes[wallB as never] as unknown as { start: readonly [number, number]; end: readonly [number, number] }
+    const dirA: readonly [number, number] = [
+      wallANode.end[0] - wallANode.start[0],
+      wallANode.end[1] - wallANode.start[1],
+    ]
+    const lenA = Math.hypot(dirA[0], dirA[1]) || 1
+    const dirB: readonly [number, number] = [
+      wallBNode.end[0] - wallBNode.start[0],
+      wallBNode.end[1] - wallBNode.start[1],
+    ]
+    const lenB = Math.hypot(dirB[0], dirB[1]) || 1
+    const extA = trackEndsAlongWall_mm(
+      framingA,
+      [wallANode.start[0] * 1000, wallANode.start[1] * 1000],
+      [dirA[0] / lenA, dirA[1] / lenA],
+    )
+    const extB = trackEndsAlongWall_mm(
+      framingB,
+      [wallBNode.start[0] * 1000, wallBNode.start[1] * 1000],
+      [dirB[0] / lenB, dirB[1] / lenB],
+    )
     expect(extA).not.toBeNull()
     expect(extB).not.toBeNull()
     // A is through: span [0, 3000].
@@ -797,12 +820,16 @@ describe('runFramingPass — L/T corner lap (first-placed runs through)', () => 
     expect(chordsA.length).toBe(2)
     expect(chordsB.length).toBe(2)
 
-    // B's start-chord world position: should be at (3000, ~46, 0) — half
-    // the 362-series web depth INSIDE B's wall from the corner (3000, 0).
+    // B's start-chord world position: should be at (~2954, ~46, 0) — half
+    // the 362-series web depth INSIDE B's wall from the corner (longitudinal
+    // trim = ~46 mm) AND shifted west by the same amount (lateral offset
+    // for L-butt, toward the through wall's body which extends west from
+    // the (3000,0) corner).
     const xsB = chordsB.map((c) => ({ x: c.start.x_mm, z: c.start.z_mm }))
     xsB.sort((a, b) => a.z - b.z)
     const buttChord = xsB[0]!
-    expect(buttChord.x).toBeCloseTo(3000, 0)
+    expect(buttChord.x).toBeGreaterThan(2940)
+    expect(buttChord.x).toBeLessThan(2965)
     expect(buttChord.z).toBeGreaterThan(30)
     expect(buttChord.z).toBeLessThan(70)
   })
@@ -937,8 +964,16 @@ describe('runFramingPass — L/T corner lap (first-placed runs through)', () => 
 
     runFramingPass()
 
-    const eastWallNode = useScene.getState().nodes[eastWall as never] as unknown as { start: readonly [number, number] }
-    const eastExt = trackEndsAlongWall_mm(eastFraming, [eastWallNode.start[0] * 1000, eastWallNode.start[1] * 1000])
+    const eastWallNode = useScene.getState().nodes[eastWall as never] as unknown as { start: readonly [number, number]; end: readonly [number, number] }
+    const eastDir: readonly [number, number] = [
+      (eastWallNode.end[0] - eastWallNode.start[0]) / Math.hypot(eastWallNode.end[0] - eastWallNode.start[0], eastWallNode.end[1] - eastWallNode.start[1]),
+      (eastWallNode.end[1] - eastWallNode.start[1]) / Math.hypot(eastWallNode.end[0] - eastWallNode.start[0], eastWallNode.end[1] - eastWallNode.start[1]),
+    ]
+    const eastExt = trackEndsAlongWall_mm(
+      eastFraming,
+      [eastWallNode.start[0] * 1000, eastWallNode.start[1] * 1000],
+      eastDir,
+    )
     expect(eastExt).not.toBeNull()
     // The east wall is now the butt at its END (where it meets the north wall).
     expect(eastExt!.startX).toBeCloseTo(0, 0)
@@ -947,8 +982,16 @@ describe('runFramingPass — L/T corner lap (first-placed runs through)', () => 
     expect(eastExt!.endX).toBeLessThan(2970)
 
     // The north wall (placed first) is through: no trim.
-    const northWallNode = useScene.getState().nodes[wallId as never] as unknown as { start: readonly [number, number] }
-    const northExt = trackEndsAlongWall_mm(framingId, [northWallNode.start[0] * 1000, northWallNode.start[1] * 1000])
+    const northWallNode = useScene.getState().nodes[wallId as never] as unknown as { start: readonly [number, number]; end: readonly [number, number] }
+    const northDir: readonly [number, number] = [
+      (northWallNode.end[0] - northWallNode.start[0]) / Math.hypot(northWallNode.end[0] - northWallNode.start[0], northWallNode.end[1] - northWallNode.start[1]),
+      (northWallNode.end[1] - northWallNode.start[1]) / Math.hypot(northWallNode.end[0] - northWallNode.start[0], northWallNode.end[1] - northWallNode.start[1]),
+    ]
+    const northExt = trackEndsAlongWall_mm(
+      framingId,
+      [northWallNode.start[0] * 1000, northWallNode.start[1] * 1000],
+      northDir,
+    )
     expect(northExt!.startX).toBeCloseTo(0, 0)
     expect(northExt!.endX).toBeCloseTo(3000, 0)
   })
