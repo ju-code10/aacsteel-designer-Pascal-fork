@@ -6,13 +6,19 @@
 // extent has to stop short or chord studs from both walls collide in
 // the corner volume.
 //
-// Trim amount: the FULL through wall's stud web depth. That puts the butt
-// wall's end far enough past the through wall's chord that the chord
-// studs sit clear of each other in plan (no bbox overlap). Combined with
-// the orientation_deg=180 flip on the start chord (so its C opens inward
-// toward the wall body), the resulting joint looks perpendicular and
-// clean. A half-web trim caused chord bboxes to overlap, putting the
-// junction visually "in the middle of" the through-wall's stud.
+// Trim amount: HALF the through wall's stud web depth. The architectural
+// corner is at the through wall's centerline; the through wall's near
+// face is half-a-web inside (toward us), so trim = half-web puts the
+// butt's track end at that face — the two tracks form a clean L with
+// no gap. The chord studs sit web-to-web at the corner; the C
+// orientation flip on the start chord (orientation_deg = 180) keeps the
+// flanges facing inward so the chord profiles don't visually invade
+// each other.
+//
+// A full-web trim leaves a visible gap between the two walls and reads
+// as "the walls are separated"; a zero trim puts both chord studs at
+// the architectural corner with significant volume overlap. Half-web
+// is the geometric "walls together, no gap, edge contact" position.
 //
 // "First-placed runs through" rule (chosen by the user): peers are
 // compared by their scene insertion index. A wall with a smaller index
@@ -28,10 +34,11 @@
 import { CHORD_PLAN_TOLERANCE_MM, CHORD_PARALLEL_DOT } from './corner-detect'
 
 /** Fraction of the through wall's stud web depth that the butt wall is
- *  shortened by — 1.0 puts the butt's end one full web past the through
- *  wall's centerline, clearing the through-wall chord's bbox entirely.
+ *  shortened by — 0.5 puts the butt's end at the through wall's near
+ *  face (the architectural centerline is at half-web in either
+ *  direction), giving a closed L with no gap and webs touching.
  *  Exported so tests and the inspector can reason about the trim. */
-export const TRIM_FRACTION_OF_THROUGH_WEB = 1.0
+export const TRIM_FRACTION_OF_THROUGH_WEB = 0.5
 
 export interface JunctionPeer {
   framingId: string
