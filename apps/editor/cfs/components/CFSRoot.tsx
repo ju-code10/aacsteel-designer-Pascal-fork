@@ -93,6 +93,29 @@ export function CFSRoot(): React.JSX.Element {
       <CFSPanelBreakTool />
       <InspectorPanel />
       <ShortcutsPanel />
+      {isCFSMode ? <PascalPanelSuppressor /> : null}
     </>
+  )
+}
+
+/**
+ * Hide Pascal's node-property panels (CeilingPanel, SlabPanel, etc.) while
+ * CFS mode is on. Those panels live in `packages/editor` (read-only
+ * upstream) and pop up at the top-right whenever a Pascal node is selected
+ * — so clicking near a wall in CFS mode can surface a "Room N Ceiling"
+ * inspector that's confusing in the CFS workflow. The CFS InspectorPanel
+ * at the bottom-right is the single source of truth in CFS mode.
+ *
+ * Match Pascal's `PanelWrapper` by its stable Tailwind class combo
+ * (`fixed top-20 right-4 z-50`). If upstream ever changes those
+ * utilities, the panels will start showing through again — at which
+ * point we should add a data-attribute upstream rather than chase the
+ * selector.
+ */
+function PascalPanelSuppressor(): React.JSX.Element {
+  return (
+    <style>{`
+      .fixed.top-20.right-4.z-50 { display: none !important; }
+    `}</style>
   )
 }
