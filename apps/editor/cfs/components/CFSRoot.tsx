@@ -11,6 +11,10 @@ import {
   useCFS,
 } from '@pascal-app/cfs'
 import { useEffect } from 'react'
+import {
+  applyCeilingAffordanceVisibility,
+  resetCeilingAffordanceVisibilityCache,
+} from '../lib/affordance-visibility'
 import { useCFSWallClickForwarder } from '../lib/use-cfs-click-forwarder'
 import { useCFSShortcuts } from '../lib/use-cfs-shortcuts'
 import { applyWallVisibility, resetWallVisibilityCache } from '../lib/wall-visibility'
@@ -74,6 +78,27 @@ export function CFSRoot(): React.JSX.Element {
       unsubCfs()
       unsubScene()
       resetWallVisibilityCache()
+    }
+  }, [])
+
+  // Hide Pascal's CeilingSelectionAffordanceSystem brackets in CFS mode.
+  // They render via R3F createPortal, so we defer one tick after scene
+  // mutations to let R3F mount the new affordance Groups before we hide
+  // them. Each call walks at most a handful of Group children per level,
+  // so re-applying is cheap.
+  useEffect(() => {
+    const apply = () => applyCeilingAffordanceVisibility(useCFS.getState().isCFSMode)
+    apply()
+    const unsubCfs = useCFS.subscribe((s, prev) => {
+      if (s.isCFSMode !== prev.isCFSMode) apply()
+    })
+    const unsubScene = useScene.subscribe((s, prev) => {
+      if (s.nodes !== prev.nodes) setTimeout(apply, 50)
+    })
+    return () => {
+      unsubCfs()
+      unsubScene()
+      resetCeilingAffordanceVisibilityCache()
     }
   }, [])
 
