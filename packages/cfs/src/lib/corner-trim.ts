@@ -6,13 +6,13 @@
 // extent has to stop short or chord studs from both walls collide in
 // the corner volume.
 //
-// Trim amount: HALF the through wall's stud web depth. The architectural
-// corner is at the through wall's centerline; the through wall's near
-// face is half-a-web-depth inside (toward us). The butt wall's track
-// ends at that face. The butt chord sits at the same x as the track end,
-// so its flange overlaps the through-wall chord's flange — the standard
-// "back-to-back" L-corner detail in CFS practice. Using the *full* web
-// depth would leave a visible gap between the chord studs.
+// Trim amount: the FULL through wall's stud web depth. That puts the butt
+// wall's end far enough past the through wall's chord that the chord
+// studs sit clear of each other in plan (no bbox overlap). Combined with
+// the orientation_deg=180 flip on the start chord (so its C opens inward
+// toward the wall body), the resulting joint looks perpendicular and
+// clean. A half-web trim caused chord bboxes to overlap, putting the
+// junction visually "in the middle of" the through-wall's stud.
 //
 // "First-placed runs through" rule (chosen by the user): peers are
 // compared by their scene insertion index. A wall with a smaller index
@@ -28,10 +28,10 @@
 import { CHORD_PLAN_TOLERANCE_MM, CHORD_PARALLEL_DOT } from './corner-detect'
 
 /** Fraction of the through wall's stud web depth that the butt wall is
- *  shortened by — 0.5 puts the butt's end at the through wall's near face
- *  (the architectural centerline is at half-web in either direction).
+ *  shortened by — 1.0 puts the butt's end one full web past the through
+ *  wall's centerline, clearing the through-wall chord's bbox entirely.
  *  Exported so tests and the inspector can reason about the trim. */
-export const TRIM_FRACTION_OF_THROUGH_WEB = 0.5
+export const TRIM_FRACTION_OF_THROUGH_WEB = 1.0
 
 export interface JunctionPeer {
   framingId: string
