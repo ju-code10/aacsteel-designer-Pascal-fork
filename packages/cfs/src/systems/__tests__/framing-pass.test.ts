@@ -834,22 +834,12 @@ describe('runFramingPass — L/T corner lap (first-placed runs through)', () => 
     expect(buttChord.z).toBeLessThan(70)
   })
 
-  it('L-CORNER: chord Cs face each other across the corner (rotated 90° about the wall axis)', async () => {
-    // A east-going (dir = +x), B north-going (dir = +z) meeting at (3,0).
-    // A's end chord (L-through) should rotate so its open mouth faces +z
-    // (toward B's body). B's start chord (L-butt) should rotate so its
-    // open mouth faces -x (toward A's body — west from the corner since
-    // A extends back to its start at the origin).
-    //
-    // For wall A east-going, mesh +X = -wallDir = -x. The polygon's open
-    // direction (mesh +X at orientation_deg = 0) is therefore -x. To face
-    // +z we need orientation_deg = +90° (rotates +X → +Y, and mesh +Y is
-    // +z because wallFrame.normal for east-going wall = +z).
-    //
-    // For wall B north-going, mesh +X = -wallDir = -z. Mesh +Y =
-    // wallFrame.normal = -x. To face -x (toward A's body, which is west
-    // of the corner) the open direction needs to align with mesh +Y, so
-    // orientation_deg = +90° here too.
+  it('L-CORNER: chord orientation_deg uses 180/0 to face flanges into own wall body', async () => {
+    // Default convention: start chord = orientation_deg 180 (C opens
+    // along +wallDir into the body), end chord = 0 (C opens along
+    // -wallDir into the body). Matches field-stud orientation at the
+    // end. The perpendicular-facing rotation was reverted — the real
+    // detail the user wants is positional, not rotational.
     const { framingId: framingA } = await seedScene({
       wallLength_m: 3.0,
       studSpacingOverride_mm: 600,
@@ -862,12 +852,12 @@ describe('runFramingPass — L/T corner lap (first-placed runs through)', () => 
 
     const aEndChord = membersOf(framingA)
       .filter((m) => m.role === 'chord-stud')
-      .sort((p, q) => q.start.x_mm - p.start.x_mm)[0]! // east-most = end chord
+      .sort((p, q) => q.start.x_mm - p.start.x_mm)[0]!
     const bStartChord = membersOf(framingB)
       .filter((m) => m.role === 'chord-stud')
-      .sort((p, q) => p.start.z_mm - q.start.z_mm)[0]! // south-most = start chord
-    expect(aEndChord.orientation_deg).toBeCloseTo(90, 0)
-    expect(bStartChord.orientation_deg).toBeCloseTo(90, 0)
+      .sort((p, q) => p.start.z_mm - q.start.z_mm)[0]!
+    expect(aEndChord.orientation_deg).toBe(0)
+    expect(bStartChord.orientation_deg).toBe(180)
   })
 
   it('T-JUNCTION: through wall emits a T-post chord stud at the junction position', async () => {
