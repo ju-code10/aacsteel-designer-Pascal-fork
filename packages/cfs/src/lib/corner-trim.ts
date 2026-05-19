@@ -243,17 +243,19 @@ function classifyOneEnd(
         : { x: -earliest.direction.x, z: -earliest.direction.z }
       if (earliest.sceneIndex < ownSceneIndex) {
         // Peer placed first → peer is through, we butt.
+        // Lateral offset = half the through wall's web depth: aligns the
+        // butt wall's outer face with the through wall's outer face. The
+        // chord stud is in its default orient_180/0 (web on outside along
+        // wall axis), so its bbox in plan is one *full* web wide — and
+        // half-web is the right offset for outer-face alignment. (The
+        // shorter "flange-width" offset was only correct when the chord
+        // was rotated 90°, which has been reverted.)
         return {
           kind: 'L-butt',
           butt: {
             peerFramingId: earliest.framingId,
             trim_mm: earliest.studWebDepth_mm * TRIM_FRACTION_OF_THROUGH_WEB,
             lateralOffsetDirection: peerBodyDirection,
-            // One flange width puts the butt chord's bbox-edge flush
-            // against the through chord's bbox-edge (instead of half-web,
-            // which leaves a ~5 mm gap because the chord bbox is only
-            // one flange wide in plan, not one web).
-            lateralOffsetMagnitude_mm: earliest.studFlangeWidth_mm,
           },
           peerBodyDirection,
         }
