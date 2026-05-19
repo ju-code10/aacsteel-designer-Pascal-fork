@@ -200,11 +200,16 @@ function buildDesiredMembers(
   // because that's structurally what it is — full height, takes the load
   // the butting wall transfers in.
   for (const post of trim.tPosts) {
+    // T-post rotates 90° so its C-section's open mouth faces the
+    // butting wall's body — same rotation logic as the butt chord
+    // at L-corners (the two perpendicular chords' Cs face each
+    // other across the joint).
     desired.push({
       role: 'chord-stud',
       sectionId: studSection.id,
       start: offsetPoint(localToWorld(wall, { x_mm: post.positionAlongWall_mm, y_mm: 0, z_mm: 0 }, z)),
       end: offsetPoint(localToWorld(wall, { x_mm: post.positionAlongWall_mm, y_mm: height_mm, z_mm: 0 }, z)),
+      orientation_deg: chordOrientationDeg(wallDir, post.buttBodyDirection),
       sourceOpeningId: null,
     })
   }

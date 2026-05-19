@@ -95,6 +95,10 @@ export interface InteriorJunction {
   positionAlongWall_mm: number
   /** Peer framing id that butts here. */
   peerFramingId: string
+  /** Unit direction (x, z) from the T-point toward the butting peer's
+   *  body — used to rotate the T-post's C-section so its open mouth
+   *  faces the butt wall (same convention as L-corner chord rotation). */
+  buttBodyDirection: { x: number; z: number }
 }
 
 export interface WallTrim {
@@ -265,12 +269,17 @@ function classifyOneEnd(
   for (const peer of peers) {
     const hit = pointOnSegmentInterior(endPos, peer.start, peer.end)
     if (hit && isPerpendicularish(peer.direction, ownDirection)) {
+      // The through wall extends both ways from the T-point so either
+      // direction along peer is geometrically valid; we pick +peer.direction
+      // so the butt's chord C rotates to face perpendicular to itself
+      // (matching the L-corner convention).
       return {
         kind: 'T-butt',
         butt: {
           peerFramingId: peer.framingId,
           trim_mm: peer.studWebDepth_mm * TRIM_FRACTION_OF_THROUGH_WEB,
         },
+        peerBodyDirection: { x: peer.direction.x, z: peer.direction.z },
       }
     }
   }
@@ -286,15 +295,27 @@ export function computeWallTrim(args: ClassifyArgs): WallTrim {
   const endJunction = classifyOneEnd(ownEnd, ownDirection, ownSceneIndex, peers)
 
   // T-through: walk peers and detect any whose endpoint lands on *our* interior.
+  // The butt's body extends away from `peerEnd` along its own axis: when
+  // peerEnd is the peer's start, the body extends in +peer.direction;
+  // when peerEnd is the peer's end, it extends in -peer.direction. We
+  // store that direction so the T-post can rotate to face the butt.
   const tPosts: InteriorJunction[] = []
   for (const peer of peers) {
     if (!isPerpendicularish(peer.direction, ownDirection)) continue
-    for (const peerEnd of [peer.start, peer.end] as const) {
+    const peerEnds: ReadonlyArray<readonly [{ x_mm: number; y_mm: number; z_mm: number }, 1 | -1]> = [
+      [peer.start, +1] as const,
+      [peer.end, -1] as const,
+    ]
+    for (const [peerEnd, sign] of peerEnds) {
       const hit = pointOnSegmentInterior(peerEnd, ownStart, ownEnd)
       if (hit) {
         tPosts.push({
           positionAlongWall_mm: hit.along_mm,
           peerFramingId: peer.framingId,
+          buttBodyDirection: {
+            x: peer.direction.x * sign,
+            z: peer.direction.z * sign,
+          },
         })
       }
     }
