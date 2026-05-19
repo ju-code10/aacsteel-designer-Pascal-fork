@@ -80,11 +80,19 @@ export function WallFramingBody({
   members,
   membersByRole,
 }: WallFramingBodyProps): React.JSX.Element {
-  const length = wallLength_mm(wall)
+  const architecturalLength = wallLength_mm(wall)
   const height_mm = framing.wallHeight_mm ?? (wall.height != null ? wall.height * 1000 : null)
   const memberCount = framing.cachedMemberCount ?? members.length
   const totalWeight_kg = framing.cachedTotalWeight_kg ?? null
   const trim = useWallTrim(framing.id as unknown as string)
+  // Effective framing length = architectural length minus trim at each
+  // butting end. The actual member geometry already uses these trimmed
+  // extents, so this is the value the cut list / BOM see — show it here
+  // instead of the architectural length so the inspector reflects what
+  // ships, not what was drawn.
+  const startTrim = trim?.startTrim_mm ?? 0
+  const endTrim = trim?.endTrim_mm ?? 0
+  const length = Math.max(0, architecturalLength - startTrim - endTrim)
 
   // §7.8.3 / §7.8.4 empty-state hints. Inferred from member data so the
   // hint surfaces even before we add full openings/panels sub-sections
