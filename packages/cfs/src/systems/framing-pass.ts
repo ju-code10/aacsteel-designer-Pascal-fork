@@ -566,18 +566,73 @@ function runFramingPassInner(): FramingProcessResult[] {
       peers: junctions.peers,
     })
 
-    // Chord-ownership is checked at the *trimmed* end positions so the butt
-    // wall's chord doesn't false-merge with the through wall's chord at the
-    // architectural endpoint (where they'd test as coincident). The trimmed
-    // position is offset by the through-wall web depth into our wall, well
-    // outside any chord coincidence tolerance.
+    // One-shot sync of the trim + lateral offset into the Pascal wall's
+    // own coordinates so its 2D dimension label (which reads
+    // wall.start / wall.end directly) matches the framing length the
+    // user sees in the CFS inspector. After this update the wall's
+    // endpoint no longer coincides with the peer's endpoint (it's a
+    // full web depth + half-web offset away), so the next framing pass
+    // classifies the junction as `free`, computes trim = 0, and skips
+    // this branch — breaking what would otherwise be an infinite trim
+    // loop. The tightened CHORD_PLAN_TOLERANCE_MM (50 mm) guarantees
+    // the ≥92 mm separation is well outside the coincidence tolerance.
+    //
+    // Both the Pascal wall AND the local emission state are updated so
+    // members emit at the post-sync positions in the SAME pass — tests
+    // (and the visible rendering between scene-update subscribers
+    // firing) see consistent geometry.
+    const needsCoordSync =
+      trim.startTrim_mm > 0 ||
+      trim.endTrim_mm > 0 ||
+      trim.lateralOffsetX_mm !== 0 ||
+      trim.lateralOffsetZ_mm !== 0
+    let effectiveWall = wall
+    let effectiveTrim = trim
+    if (needsCoordSync) {
+      const dx_m = wall.end[0] - wall.start[0]
+      const dy_m = wall.end[1] - wall.start[1]
+      const length_m = Math.hypot(dx_m, dy_m)
+      if (length_m > 1e-6) {
+        const ux = dx_m / length_m
+        const uy = dy_m / length_m
+        const offsetX_m = trim.lateralOffsetX_mm / 1000
+        const offsetZ_m = trim.lateralOffsetZ_mm / 1000
+        const newStart: [number, number] = [
+          wall.start[0] + ux * (trim.startTrim_mm / 1000) + offsetX_m,
+          wall.start[1] + uy * (trim.startTrim_mm / 1000) + offsetZ_m,
+        ]
+        const newEnd: [number, number] = [
+          wall.end[0] - ux * (trim.endTrim_mm / 1000) + offsetX_m,
+          wall.end[1] - uy * (trim.endTrim_mm / 1000) + offsetZ_m,
+        ]
+        sceneState.updateNode(
+          wall.id as unknown as AnyNodeId,
+          { start: newStart, end: newEnd } as unknown as Partial<AnyNode>,
+        )
+        effectiveWall = { ...wall, start: newStart, end: newEnd }
+        effectiveTrim = {
+          ...trim,
+          startTrim_mm: 0,
+          endTrim_mm: 0,
+          lateralOffsetX_mm: 0,
+          lateralOffsetZ_mm: 0,
+        }
+      }
+    }
+
+    // Chord-ownership is checked at the *post-sync* end positions so the
+    // butt wall's chord doesn't false-merge with the through wall's chord
+    // at the (former) architectural endpoint. After the wall-coord sync
+    // effectiveTrim is zero so these resolve to the wall's actual current
+    // endpoints; before the sync the trim positions were inside the wall.
+    const effectiveLength_mm = wallLengthFromPascalWall(effectiveWall)
     const trimmedStartWorld = chordPositionFromWorld(
-      localToWorld(wall, { x_mm: trim.startTrim_mm, y_mm: 0, z_mm: 0 }, elevation_mm),
+      localToWorld(effectiveWall, { x_mm: effectiveTrim.startTrim_mm, y_mm: 0, z_mm: 0 }, elevation_mm),
     )
     const trimmedEndWorld = chordPositionFromWorld(
       localToWorld(
-        wall,
-        { x_mm: wallLength_mm - trim.endTrim_mm, y_mm: 0, z_mm: 0 },
+        effectiveWall,
+        { x_mm: effectiveLength_mm - effectiveTrim.endTrim_mm, y_mm: 0, z_mm: 0 },
         elevation_mm,
       ),
     )
@@ -591,10 +646,10 @@ function runFramingPassInner(): FramingProcessResult[] {
     const headerDefault: CFSHeaderType =
       framing.defaultHeaderType ?? settings.defaultHeaderType
     const wallHeight_mm =
-      framing.wallHeight_mm ?? wallHeightFromPascalWall(wall)
+      framing.wallHeight_mm ?? wallHeightFromPascalWall(effectiveWall)
     const studSpacing_mm = framing.studSpacing_mm ?? settings.defaultStudSpacing_mm
     const openingLayout = computeOpeningLayout({
-      wallLength_mm: wallLengthFromPascalWall(wall),
+      wallLength_mm: effectiveLength_mm,
       wallHeight_mm,
       studSpacing_mm,
       studSection,
@@ -608,12 +663,12 @@ function runFramingPassInner(): FramingProcessResult[] {
     // so studs stack vertically across levels (CFS best practice).
     const inheritedStudXs = getInheritedStudPositions_mm(
       sceneLike,
-      wall,
+      effectiveWall,
       settings.defaultStudSpacing_mm,
     )
 
     const desiredRaw = buildDesiredMembers(
-      wall,
+      effectiveWall,
       framing,
       settings,
       studSection,
@@ -623,7 +678,7 @@ function runFramingPassInner(): FramingProcessResult[] {
       openingLayout,
       elevation_mm,
       inheritedStudXs,
-      trim,
+      effectiveTrim,
     )
     const desired = materialiseDesired(framing, desiredRaw)
     const existing = childrenOfType<CFSMember>(sceneState.nodes, framingId, 'cfs_member')

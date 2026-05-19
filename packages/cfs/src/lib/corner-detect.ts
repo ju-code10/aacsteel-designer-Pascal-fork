@@ -16,7 +16,13 @@
 
 import type { CFSPoint3D } from '../schema/primitives'
 
-export const CHORD_PLAN_TOLERANCE_MM = 100
+// Plan tolerance for chord coincidence. Tightened from 100 → 50 mm so a
+// once-trimmed wall (which sits ~92 mm past the architectural corner along
+// its own direction) no longer registers as coincident with its old peer
+// on subsequent framing passes — preventing infinite trim-then-retrim
+// loops when the framing-pass writes the trim back into Pascal's wall
+// coordinates so the 2D dimension label reflects the framing length.
+export const CHORD_PLAN_TOLERANCE_MM = 50
 export const CHORD_ELEVATION_TOLERANCE_MM = 1
 export const CHORD_PARALLEL_DOT = 0.9
 

@@ -795,15 +795,21 @@ describe('runFramingPass — L/T corner lap (first-placed runs through)', () => 
     )
     expect(extA).not.toBeNull()
     expect(extB).not.toBeNull()
-    // A is through: span [0, 3000].
+    // Wall A (through): full architectural length on the framing.
     expect(extA!.startX).toBeCloseTo(0, 0)
     expect(extA!.endX).toBeCloseTo(3000, 0)
-    // B is butt: span shortened by the FULL 362S162-54 web depth ≈ 92 mm
-    // so its framing's south bbox edge aligns with A's far face (no
-    // volume overlap at the corner).
-    expect(extB!.startX).toBeGreaterThan(80)
-    expect(extB!.startX).toBeLessThan(105)
-    expect(extB!.endX).toBeCloseTo(3000, 0)
+    // Wall B (butt): the trim was synced into Pascal's wall coordinates,
+    // so wall.start moved 92 mm along the wall direction and the track
+    // span (measured from the *new* wall start) is now 2908 mm long.
+    // Effectively the same geometry as before, just relocated from the
+    // local-x offset into wall.start itself.
+    expect(extB!.startX).toBeCloseTo(0, 0)
+    const lengthB = extB!.endX - extB!.startX
+    expect(lengthB).toBeGreaterThan(2890)
+    expect(lengthB).toBeLessThan(2925)
+    // The architectural wall (3.0 → 3.0 + 3.0) now starts at z ≈ 92 mm.
+    expect(wallBNode.start[1] * 1000).toBeGreaterThan(80)
+    expect(wallBNode.start[1] * 1000).toBeLessThan(105)
   })
 
   it('L-CORNER: B chord stud sits at the trimmed start, not at the architectural corner', async () => {
