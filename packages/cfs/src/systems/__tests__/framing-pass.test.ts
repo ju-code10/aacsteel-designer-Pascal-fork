@@ -820,16 +820,15 @@ describe('runFramingPass — L/T corner lap (first-placed runs through)', () => 
     expect(chordsA.length).toBe(2)
     expect(chordsB.length).toBe(2)
 
-    // B's start-chord world position: should be at (~2954, ~46, 0) — half
-    // the 362-series web depth INSIDE B's wall from the corner (longitudinal
-    // trim = ~46 mm) AND shifted west by the same amount (lateral offset
-    // for L-butt, toward the through wall's body which extends west from
-    // the (3000,0) corner).
+    // B's start-chord world position: should be at (3000, ~46, 0) — the
+    // half-web longitudinal trim moves B's framing north by ~46 mm at the
+    // butting end. Lateral offset has been reverted (the user's drawn
+    // line is treated as the architectural centerline, not the outer
+    // face), so B's chord stays on the architectural x = 3000 centerline.
     const xsB = chordsB.map((c) => ({ x: c.start.x_mm, z: c.start.z_mm }))
     xsB.sort((a, b) => a.z - b.z)
     const buttChord = xsB[0]!
-    expect(buttChord.x).toBeGreaterThan(2940)
-    expect(buttChord.x).toBeLessThan(2965)
+    expect(buttChord.x).toBeCloseTo(3000, 0)
     expect(buttChord.z).toBeGreaterThan(30)
     expect(buttChord.z).toBeLessThan(70)
   })

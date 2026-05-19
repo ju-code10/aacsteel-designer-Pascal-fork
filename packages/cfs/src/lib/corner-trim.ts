@@ -351,40 +351,20 @@ export function computeWallTrim(args: ClassifyArgs): WallTrim {
     dedupedTPosts.push(t)
   }
 
-  // Aggregate lateral offset from L-butt AND L-through ends. Each L
-  // junction votes a direction × magnitude in plan; we sum and average.
+  // No lateral offset. Per the user's "construction order" model:
+  // every wall stays on its architectural centerline; the only
+  // adjustment at a corner is the longitudinal trim that shortens the
+  // butt wall's framing by half the through wall's web depth (track
+  // ends at the through wall's near face). With lateral offsets the
+  // walls' framings physically overlapped at the corner — the user
+  // sees that as "studs inside each other."
   //
-  // L-butt: magnitude = lateralOffsetMagnitude_mm (or trim_mm).
-  // L-through: magnitude = peerWebDepth_mm × TRIM_FRACTION_OF_THROUGH_WEB
-  //            (half the perpendicular peer's web depth).
-  //
-  // Both end up at the same number for a uniform rectangle, which keeps
-  // the through and butt walls in alignment at their shared corner.
-  const offsetVotes: { x: number; z: number }[] = []
-  for (const j of [startJunction, endJunction]) {
-    if (j.kind === 'L-butt') {
-      const dir = j.butt?.lateralOffsetDirection
-      const mag = j.butt?.lateralOffsetMagnitude_mm ?? j.butt?.trim_mm
-      if (!dir || mag == null) continue
-      offsetVotes.push({ x: dir.x * mag, z: dir.z * mag })
-    } else if (j.kind === 'L-through') {
-      const dir = j.peerBodyDirection
-      const peerWeb = j.peerWebDepth_mm
-      if (!dir || peerWeb == null) continue
-      const mag = peerWeb * TRIM_FRACTION_OF_THROUGH_WEB
-      offsetVotes.push({ x: dir.x * mag, z: dir.z * mag })
-    }
-  }
-  let lateralOffsetX_mm = 0
-  let lateralOffsetZ_mm = 0
-  if (offsetVotes.length > 0) {
-    for (const v of offsetVotes) {
-      lateralOffsetX_mm += v.x
-      lateralOffsetZ_mm += v.z
-    }
-    lateralOffsetX_mm /= offsetVotes.length
-    lateralOffsetZ_mm /= offsetVotes.length
-  }
+  // The trade-off is that wall framings extend half-a-web past their
+  // architectural centerlines in the perpendicular direction, so the
+  // building's outer faces sit half-a-web outside the drawn perimeter.
+  // The user is OK with that: the drawn line is the centerline.
+  const lateralOffsetX_mm = 0
+  const lateralOffsetZ_mm = 0
 
   return {
     startTrim_mm: startJunction.butt?.trim_mm ?? 0,
