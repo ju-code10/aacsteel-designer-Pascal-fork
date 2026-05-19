@@ -834,12 +834,18 @@ describe('runFramingPass — L/T corner lap (first-placed runs through)', () => 
     expect(buttChord.z).toBeLessThan(70)
   })
 
-  it('L-CORNER: chord orientation_deg uses 180/0 to face flanges into own wall body', async () => {
-    // Default convention: start chord = orientation_deg 180 (C opens
-    // along +wallDir into the body), end chord = 0 (C opens along
-    // -wallDir into the body). Matches field-stud orientation at the
-    // end. The perpendicular-facing rotation was reverted — the real
-    // detail the user wants is positional, not rotational.
+  it('L-CORNER: through chord opens along its wall axis; butt chord rotates 90° to face the through wall', async () => {
+    // A east-going (placed first, through). A's END chord at (3,0)
+    // keeps the default "open along own wall axis into the body"
+    // orientation: orientation_deg = 0 because the wall body extends
+    // backward from the end (toward -wallDir which is mesh +X at
+    // orientation 0).
+    //
+    // B north-going (placed second, butt). B's START chord rotates so
+    // its open mouth faces -x (toward A's body, which extends west
+    // from the (3,0) corner). For wall B going north, mesh +X is
+    // -wallDir = -z; mesh +Y is wallFrame.normal = -x. Open toward
+    // -x means align with mesh +Y, so orientation_deg = 90.
     const { framingId: framingA } = await seedScene({
       wallLength_m: 3.0,
       studSpacingOverride_mm: 600,
@@ -857,7 +863,7 @@ describe('runFramingPass — L/T corner lap (first-placed runs through)', () => 
       .filter((m) => m.role === 'chord-stud')
       .sort((p, q) => p.start.z_mm - q.start.z_mm)[0]!
     expect(aEndChord.orientation_deg).toBe(0)
-    expect(bStartChord.orientation_deg).toBe(180)
+    expect(bStartChord.orientation_deg).toBeCloseTo(90, 0)
   })
 
   it('T-JUNCTION: through wall emits a T-post chord stud at the junction position', async () => {

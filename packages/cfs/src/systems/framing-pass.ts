@@ -62,6 +62,36 @@ interface DesiredMember {
   sourceOpeningId: string | null
 }
 
+/**
+ * Convert a world-space open direction (where the chord's C should open
+ * in plan) into the cross-section rotation `orientation_deg` that the
+ * extrusion cache and member-orientation matrix expect.
+ *
+ * The chord's mesh basis (set by `member-orientation.ts` for a vertical
+ * stud) is: mesh +X = -wallDir, mesh +Y = wallFrame.normal where
+ * normal = (-wallDir.z, wallDir.x). The polygon's open direction is
+ * mesh +X at orientation_deg = 0. Rotating by `orient` puts the open
+ * direction at `(cos(orient), sin(orient))` in the (mesh X, mesh Y)
+ * plane, which in world is `mesh_X_world * cos + mesh_Y_world * sin`.
+ * Solving for `orient`:
+ *   cos = open · mesh_X_world  =  -(open · wallDir)
+ *   sin = open · mesh_Y_world  =   open · normal
+ */
+function chordOrientationDeg(
+  wallDir: { x: number; z: number },
+  openDir: { x: number; z: number },
+): number {
+  const normalX = -wallDir.z
+  const normalZ = wallDir.x
+  const cosC = -(openDir.x * wallDir.x + openDir.z * wallDir.z)
+  const sinC = openDir.x * normalX + openDir.z * normalZ
+  const rad = Math.atan2(sinC, cosC)
+  const deg = (rad * 180) / Math.PI
+  if (deg > 180) return deg - 360
+  if (deg < -180) return deg + 360
+  return deg
+}
+
 function generateUuid(): string {
   const c: { randomUUID?: () => string } = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto ?? {}
   if (typeof c.randomUUID === 'function') return c.randomUUID()
@@ -137,23 +167,30 @@ function buildDesiredMembers(
   // king. At butt ends `ownsXChord` will be true because the chord sits inside
   // the through wall's chord (different plan position, no merge).
   //
-  // Orientation: the cross-section is built with flanges opening in the
-  // -wall-direction. For the END chord that already faces inward (toward
-  // the wall body) so orientation_deg = 0; for the START chord we rotate
-  // 180° so flanges face inward there too. Matches field-stud orientation
-  // at the END (rest of the wall continues in -wall.direction from there).
-  for (const [x, owns, promoteToKing, isStart] of [
-    [startX, ownsStartChord, openingLayout.promoteStartChordToKing, true] as const,
-    [endX, ownsEndChord, openingLayout.promoteEndChordToKing, false] as const,
+  // Orientation: the BUTT chord stud is rotated so its C-section's open
+  // mouth faces perpendicular to its own wall, toward the through wall's
+  // body — matches the real CFS detail the user confirmed via on-site
+  // photos. THROUGH chords and FREE-END chords keep the default "open
+  // along own wall axis into the body" orientation (180° at start, 0°
+  // at end). The peerBodyDirection on EndJunction carries the world-space
+  // direction we want the butt's C to face.
+  const wallDir = wallDirection(wall)
+  for (const [x, owns, promoteToKing, isStart, junction] of [
+    [startX, ownsStartChord, openingLayout.promoteStartChordToKing, true, trim.startJunction] as const,
+    [endX, ownsEndChord, openingLayout.promoteEndChordToKing, false, trim.endJunction] as const,
   ]) {
     if (!owns) continue
     const role: CFSMemberRole = promoteToKing ? 'king-stud' : 'chord-stud'
+    const isButt = junction.kind === 'L-butt' || junction.kind === 'T-butt'
+    const orientation_deg = isButt && junction.peerBodyDirection
+      ? chordOrientationDeg(wallDir, junction.peerBodyDirection)
+      : (isStart ? 180 : 0)
     desired.push({
       role,
       sectionId: studSection.id,
       start: offsetPoint(localToWorld(wall, { x_mm: x, y_mm: 0, z_mm: 0 }, z)),
       end: offsetPoint(localToWorld(wall, { x_mm: x, y_mm: height_mm, z_mm: 0 }, z)),
-      orientation_deg: isStart ? 180 : 0,
+      orientation_deg,
       sourceOpeningId: null,
     })
   }
