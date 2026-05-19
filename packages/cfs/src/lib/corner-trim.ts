@@ -72,6 +72,13 @@ export interface EndJunction {
     trim_mm: number
     lateralOffsetDirection?: { x: number; z: number }
   }
+  /** Unit vector (x, z) from this end toward the perpendicular peer wall's
+   *  body — set for L-butt and L-through. The chord-stud at this end has
+   *  its C-section rotated so the open mouth faces this direction, so the
+   *  two chord-studs at a corner end up with their Cs facing the building
+   *  interior across the corner instead of opening along their own walls
+   *  past each other. */
+  peerBodyDirection?: { x: number; z: number }
 }
 
 export interface InteriorJunction {
@@ -205,33 +212,35 @@ function classifyOneEnd(
         (best, p) => (p.sceneIndex < best.sceneIndex ? p : best),
         perpPeers[0]!,
       )
+      // For both L-butt and L-through, "toward the peer's body" is the
+      // direction from this corner into the peer wall (used for the chord
+      // C-section's open direction). The peer's endpoint coincides with
+      // this corner; whichever of its endpoints is closer marks the
+      // corner, and the further one points into the body.
+      const dStart = Math.hypot(
+        earliest.start.x_mm - endPos.x_mm,
+        earliest.start.z_mm - endPos.z_mm,
+      )
+      const dEnd = Math.hypot(
+        earliest.end.x_mm - endPos.x_mm,
+        earliest.end.z_mm - endPos.z_mm,
+      )
+      const peerBodyDirection = dStart <= dEnd
+        ? { x: earliest.direction.x, z: earliest.direction.z }
+        : { x: -earliest.direction.x, z: -earliest.direction.z }
       if (earliest.sceneIndex < ownSceneIndex) {
         // Peer placed first → peer is through, we butt.
-        // Lateral offset direction: from this corner toward the through
-        // wall's body. The through wall's endpoint coincides with this
-        // corner; whichever of its endpoints is closer marks the corner,
-        // and the further one points into the body.
-        const dStart = Math.hypot(
-          earliest.start.x_mm - endPos.x_mm,
-          earliest.start.z_mm - endPos.z_mm,
-        )
-        const dEnd = Math.hypot(
-          earliest.end.x_mm - endPos.x_mm,
-          earliest.end.z_mm - endPos.z_mm,
-        )
-        const lateralOffsetDirection = dStart <= dEnd
-          ? { x: earliest.direction.x, z: earliest.direction.z }
-          : { x: -earliest.direction.x, z: -earliest.direction.z }
         return {
           kind: 'L-butt',
           butt: {
             peerFramingId: earliest.framingId,
             trim_mm: earliest.studWebDepth_mm * TRIM_FRACTION_OF_THROUGH_WEB,
-            lateralOffsetDirection,
+            lateralOffsetDirection: peerBodyDirection,
           },
+          peerBodyDirection,
         }
       }
-      return { kind: 'L-through' }
+      return { kind: 'L-through', peerBodyDirection }
     }
     if (parallelPeers.length > 0) {
       return { kind: 'collinear-shared' }
