@@ -131,10 +131,10 @@ describe('computeWallTrim — L corner', () => {
     expect(trimB.startTrim_mm).toBe(0)
   })
 
-  it('trim amount is half the THROUGH wall web depth, not own', () => {
+  it('trim amount is the THROUGH wall web depth, not own', () => {
     // Through wall uses a deep 600-series section (WEB_152); butting wall
-    // uses a 362-series (WEB_92). The butt trim should be WEB_152/2 = 76,
-    // not WEB_92/2 = 46.
+    // uses a 362-series (WEB_92). The butt trim should be WEB_152 = 152,
+    // not WEB_92 = 92.
     const peerThrough: JunctionPeer = {
       framingId: 'a',
       sceneIndex: 0,

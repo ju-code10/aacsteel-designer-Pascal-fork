@@ -798,9 +798,11 @@ describe('runFramingPass — L/T corner lap (first-placed runs through)', () => 
     // A is through: span [0, 3000].
     expect(extA!.startX).toBeCloseTo(0, 0)
     expect(extA!.endX).toBeCloseTo(3000, 0)
-    // B is butt: span shortened by HALF the 362S162-54 web depth ≈ 46 mm.
-    expect(extB!.startX).toBeGreaterThan(30)
-    expect(extB!.startX).toBeLessThan(70)
+    // B is butt: span shortened by the FULL 362S162-54 web depth ≈ 92 mm
+    // so its framing's south bbox edge aligns with A's far face (no
+    // volume overlap at the corner).
+    expect(extB!.startX).toBeGreaterThan(80)
+    expect(extB!.startX).toBeLessThan(105)
     expect(extB!.endX).toBeCloseTo(3000, 0)
   })
 
@@ -820,17 +822,18 @@ describe('runFramingPass — L/T corner lap (first-placed runs through)', () => 
     expect(chordsA.length).toBe(2)
     expect(chordsB.length).toBe(2)
 
-    // B's start-chord world position: should be at (3000, ~46, 0) — the
-    // half-web longitudinal trim moves B's framing north by ~46 mm at the
-    // butting end. Lateral offset has been reverted (the user's drawn
-    // line is treated as the architectural centerline, not the outer
-    // face), so B's chord stays on the architectural x = 3000 centerline.
+    // B's start-chord world position: at (~2954, ~92, 0) — the full-web
+    // longitudinal trim moves B's framing north by ~92 mm at the butting
+    // end so its south bbox edge aligns with A's far face (no overlap),
+    // and the half-web lateral offset shifts the chord west by ~46 mm
+    // so B's east outer face snaps to the architectural x = 3000 line.
     const xsB = chordsB.map((c) => ({ x: c.start.x_mm, z: c.start.z_mm }))
     xsB.sort((a, b) => a.z - b.z)
     const buttChord = xsB[0]!
-    expect(buttChord.x).toBeCloseTo(3000, 0)
-    expect(buttChord.z).toBeGreaterThan(30)
-    expect(buttChord.z).toBeLessThan(70)
+    expect(buttChord.x).toBeGreaterThan(2940)
+    expect(buttChord.x).toBeLessThan(2965)
+    expect(buttChord.z).toBeGreaterThan(80)
+    expect(buttChord.z).toBeLessThan(105)
   })
 
   it('L-CORNER: all chord studs open along their own wall axis (180 at start, 0 at end)', async () => {
@@ -882,16 +885,16 @@ describe('runFramingPass — L/T corner lap (first-placed runs through)', () => 
     expect(tPost!.start.x_mm).toBeCloseTo(2100, 0)
     expect(tPost!.start.z_mm).toBeCloseTo(0, 0)
 
-    // B is T-butt — its start should be trimmed by ~46 mm (half web).
+    // B is T-butt — its start should be trimmed by ~92 mm (full web).
     const tracksB = membersOf(framingB).filter((m) => m.role === 'bottom-track')
     expect(tracksB.length).toBe(1)
-    // Length of B's bottom track: 3000 mm − half web depth ≈ 2954 mm.
+    // Length of B's bottom track: 3000 mm − full web depth ≈ 2908 mm.
     const trackLen = Math.hypot(
       tracksB[0]!.end.x_mm - tracksB[0]!.start.x_mm,
       tracksB[0]!.end.z_mm - tracksB[0]!.start.z_mm,
     )
-    expect(trackLen).toBeLessThan(2980)
-    expect(trackLen).toBeGreaterThan(2920)
+    expect(trackLen).toBeLessThan(2925)
+    expect(trackLen).toBeGreaterThan(2895)
   })
 
   it('T-JUNCTION: field stud near the T-post is displaced (no duplicate stud)', async () => {
@@ -1003,9 +1006,9 @@ describe('runFramingPass — L/T corner lap (first-placed runs through)', () => 
     expect(eastExt).not.toBeNull()
     // The east wall is now the butt at its END (where it meets the north wall).
     expect(eastExt!.startX).toBeCloseTo(0, 0)
-    // East wall butts at its END; trimmed by half the through wall's web (~46 mm).
-    expect(eastExt!.endX).toBeGreaterThan(2930)
-    expect(eastExt!.endX).toBeLessThan(2970)
+    // East wall butts at its END; trimmed by the FULL through-wall web (~92 mm).
+    expect(eastExt!.endX).toBeGreaterThan(2895)
+    expect(eastExt!.endX).toBeLessThan(2925)
 
     // The north wall (placed first) is through: no trim.
     const northWallNode = useScene.getState().nodes[wallId as never] as unknown as { start: readonly [number, number]; end: readonly [number, number] }

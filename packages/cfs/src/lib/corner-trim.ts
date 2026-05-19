@@ -34,11 +34,13 @@
 import { CHORD_PLAN_TOLERANCE_MM, CHORD_PARALLEL_DOT } from './corner-detect'
 
 /** Fraction of the through wall's stud web depth that the butt wall is
- *  shortened by — 0.5 puts the butt's end at the through wall's near
- *  face (the architectural centerline is at half-web in either
- *  direction), giving a closed L with no gap and webs touching.
- *  Exported so tests and the inspector can reason about the trim. */
-export const TRIM_FRACTION_OF_THROUGH_WEB = 0.5
+ *  shortened by — 1.0 puts the butt's end at the through wall's far
+ *  face, so the butt wall's framing bbox starts exactly where the
+ *  through wall's framing bbox ends (zero volume overlap). Combined
+ *  with the lateral offset (also half-web toward the peer's body),
+ *  the building outer faces snap to the architectural perimeter and
+ *  every junction is a clean face-to-face touch. */
+export const TRIM_FRACTION_OF_THROUGH_WEB = 1.0
 
 export interface JunctionPeer {
   framingId: string
@@ -351,20 +353,39 @@ export function computeWallTrim(args: ClassifyArgs): WallTrim {
     dedupedTPosts.push(t)
   }
 
-  // No lateral offset. Per the user's "construction order" model:
-  // every wall stays on its architectural centerline; the only
-  // adjustment at a corner is the longitudinal trim that shortens the
-  // butt wall's framing by half the through wall's web depth (track
-  // ends at the through wall's near face). With lateral offsets the
-  // walls' framings physically overlapped at the corner — the user
-  // sees that as "studs inside each other."
-  //
-  // The trade-off is that wall framings extend half-a-web past their
-  // architectural centerlines in the perpendicular direction, so the
-  // building's outer faces sit half-a-web outside the drawn perimeter.
-  // The user is OK with that: the drawn line is the centerline.
-  const lateralOffsetX_mm = 0
-  const lateralOffsetZ_mm = 0
+  // Aggregate lateral offset from L-butt AND L-through ends. Each L
+  // junction votes a direction × magnitude in plan; magnitude is
+  // half the perpendicular peer's web depth so the wall's outer face
+  // snaps to the architectural drawn line. Combined with the full-web
+  // longitudinal trim (TRIM_FRACTION_OF_THROUGH_WEB = 1.0), perpendicular
+  // walls touch at the through wall's far face with zero volume overlap.
+  const HALF_WEB = 0.5
+  const offsetVotes: { x: number; z: number }[] = []
+  for (const j of [startJunction, endJunction]) {
+    if (j.kind === 'L-butt') {
+      const dir = j.butt?.lateralOffsetDirection ?? j.peerBodyDirection
+      const peerWeb = j.peerWebDepth_mm ?? j.butt?.trim_mm
+      if (!dir || peerWeb == null) continue
+      const mag = peerWeb * HALF_WEB
+      offsetVotes.push({ x: dir.x * mag, z: dir.z * mag })
+    } else if (j.kind === 'L-through') {
+      const dir = j.peerBodyDirection
+      const peerWeb = j.peerWebDepth_mm
+      if (!dir || peerWeb == null) continue
+      const mag = peerWeb * HALF_WEB
+      offsetVotes.push({ x: dir.x * mag, z: dir.z * mag })
+    }
+  }
+  let lateralOffsetX_mm = 0
+  let lateralOffsetZ_mm = 0
+  if (offsetVotes.length > 0) {
+    for (const v of offsetVotes) {
+      lateralOffsetX_mm += v.x
+      lateralOffsetZ_mm += v.z
+    }
+    lateralOffsetX_mm /= offsetVotes.length
+    lateralOffsetZ_mm /= offsetVotes.length
+  }
 
   return {
     startTrim_mm: startJunction.butt?.trim_mm ?? 0,
