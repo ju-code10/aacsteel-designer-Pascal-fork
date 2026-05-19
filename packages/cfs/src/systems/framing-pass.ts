@@ -361,14 +361,18 @@ function collectJunctionPeers(
     if (peerLength_mm === 0) continue
     const studSectionId = framing.studSectionId ?? settings.defaultStudSection
     const studSection = library.sections.find((s) => s.id === studSectionId)
-    // Fall back to the project's default stud web depth if we cannot resolve.
-    // The peer is still real geometrically; we just have no exact trim figure.
+    // Fall back to the project's default section if we cannot resolve.
+    // The peer is still real geometrically; we just have no exact figures.
     const defaultSection = library.sections.find(
       (s) => s.id === settings.defaultStudSection,
     )
     const webDepth_mm =
       studSection?.properties.webDepth_mm ??
       defaultSection?.properties.webDepth_mm ??
+      0
+    const flangeWidth_mm =
+      studSection?.properties.flangeWidth_mm ??
+      defaultSection?.properties.flangeWidth_mm ??
       0
     const peerElevation_mm =
       wallLevelElevation_mm(scene, wall.id, slabFn) +
@@ -388,6 +392,7 @@ function collectJunctionPeers(
       ),
       direction: wallDirection(wall),
       studWebDepth_mm: webDepth_mm,
+      studFlangeWidth_mm: flangeWidth_mm,
     })
   }
   return { ownSceneIndex, peers }

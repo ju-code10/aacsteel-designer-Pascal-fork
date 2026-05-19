@@ -100,6 +100,10 @@ export function useWallTrim(framingId: string | null): WallTrim | null {
         section?.properties.webDepth_mm ??
         defaultSection?.properties.webDepth_mm ??
         0
+      const flangeWidth_mm =
+        section?.properties.flangeWidth_mm ??
+        defaultSection?.properties.flangeWidth_mm ??
+        0
       const peerElevation_mm =
         wallLevelElevation_mm(sceneLike, peerWall.id, slabFn) +
         Math.max(0, slabFn(peerWall.id))
@@ -118,6 +122,7 @@ export function useWallTrim(framingId: string | null): WallTrim | null {
         ),
         direction: wallDirection(peerWall),
         studWebDepth_mm: webDepth_mm,
+        studFlangeWidth_mm: flangeWidth_mm,
       })
     }
 

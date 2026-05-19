@@ -51,6 +51,10 @@ export interface JunctionPeer {
   direction: { x: number; z: number }
   /** Peer's stud web depth in mm — the amount we trim by when butting into it. */
   studWebDepth_mm: number
+  /** Peer's stud flange width in mm — the cross-section bbox width in plan,
+   *  used as the lateral-offset magnitude so the butt chord sits flush
+   *  against the through chord's edge instead of leaving a hairline gap. */
+  studFlangeWidth_mm: number
 }
 
 export type EndJunctionKind =
@@ -71,6 +75,11 @@ export interface EndJunction {
     peerFramingId: string
     trim_mm: number
     lateralOffsetDirection?: { x: number; z: number }
+    /** Magnitude of the lateral offset along `lateralOffsetDirection`.
+     *  Decoupled from `trim_mm` because the trim is half-web (track
+     *  butts the through-wall face) while the offset is one flange
+     *  width (chord-stud edges sit flush). */
+    lateralOffsetMagnitude_mm?: number
   }
   /** Unit vector (x, z) from this end toward the perpendicular peer wall's
    *  body — set for L-butt and L-through. The chord-stud at this end has
@@ -236,6 +245,11 @@ function classifyOneEnd(
             peerFramingId: earliest.framingId,
             trim_mm: earliest.studWebDepth_mm * TRIM_FRACTION_OF_THROUGH_WEB,
             lateralOffsetDirection: peerBodyDirection,
+            // One flange width puts the butt chord's bbox-edge flush
+            // against the through chord's bbox-edge (instead of half-web,
+            // which leaves a ~5 mm gap because the chord bbox is only
+            // one flange wide in plan, not one web).
+            lateralOffsetMagnitude_mm: earliest.studFlangeWidth_mm,
           },
           peerBodyDirection,
         }
@@ -307,7 +321,7 @@ export function computeWallTrim(args: ClassifyArgs): WallTrim {
   for (const j of [startJunction, endJunction]) {
     if (j.kind !== 'L-butt') continue
     const dir = j.butt?.lateralOffsetDirection
-    const mag = j.butt?.trim_mm
+    const mag = j.butt?.lateralOffsetMagnitude_mm ?? j.butt?.trim_mm
     if (!dir || mag == null) continue
     offsetVotes.push({ x: dir.x * mag, z: dir.z * mag })
   }

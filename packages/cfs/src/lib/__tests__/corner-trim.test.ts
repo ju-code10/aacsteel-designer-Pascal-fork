@@ -47,6 +47,7 @@ describe('computeWallTrim — L corner', () => {
       end: p(3000, 3000),
       direction: north,
       studWebDepth_mm: WEB_92,
+      studFlangeWidth_mm: 41,
     }
     const trimA = computeWallTrim({
       ownFramingId: 'a',
@@ -71,6 +72,7 @@ describe('computeWallTrim — L corner', () => {
       end: aEnd,
       direction: east,
       studWebDepth_mm: WEB_92,
+      studFlangeWidth_mm: 41,
     }
     const trimB = computeWallTrim({
       ownFramingId: 'b',
@@ -96,6 +98,7 @@ describe('computeWallTrim — L corner', () => {
       end: aEnd,
       direction: east,
       studWebDepth_mm: WEB_92,
+      studFlangeWidth_mm: 41,
     }
     const peerBFromA: JunctionPeer = {
       framingId: 'b',
@@ -104,6 +107,7 @@ describe('computeWallTrim — L corner', () => {
       end: p(3000, 3000),
       direction: north,
       studWebDepth_mm: WEB_92,
+      studFlangeWidth_mm: 41,
     }
     const trimA = computeWallTrim({
       ownFramingId: 'a',
@@ -138,6 +142,7 @@ describe('computeWallTrim — L corner', () => {
       end: aEnd,
       direction: east,
       studWebDepth_mm: WEB_152,
+      studFlangeWidth_mm: 51,
     }
     const trimButt = computeWallTrim({
       ownFramingId: 'b',
@@ -161,6 +166,7 @@ describe('computeWallTrim — L corner', () => {
       end: p(6000, 0),
       direction: east,
       studWebDepth_mm: WEB_92,
+      studFlangeWidth_mm: 41,
     }
     const trimA = computeWallTrim({
       ownFramingId: 'a',
@@ -182,6 +188,7 @@ describe('computeWallTrim — L corner', () => {
       end: p(3000, 3000, 2700),
       direction: north,
       studWebDepth_mm: WEB_92,
+      studFlangeWidth_mm: 41,
     }
     const trimA = computeWallTrim({
       ownFramingId: 'a',
@@ -206,6 +213,7 @@ describe('computeWallTrim — T junction', () => {
       end: p(1500, 3000),
       direction: north,
       studWebDepth_mm: WEB_92,
+      studFlangeWidth_mm: 41,
     }
     const trimA = computeWallTrim({
       ownFramingId: 'a',
@@ -232,6 +240,7 @@ describe('computeWallTrim — T junction', () => {
       end: aEnd,
       direction: east,
       studWebDepth_mm: WEB_92,
+      studFlangeWidth_mm: 41,
     }
     const trimB = computeWallTrim({
       ownFramingId: 'b',
@@ -257,6 +266,7 @@ describe('computeWallTrim — T junction', () => {
       end: aEnd,
       direction: east,
       studWebDepth_mm: WEB_92,
+      studFlangeWidth_mm: 41,
     }
     const trimB = computeWallTrim({
       ownFramingId: 'b',
@@ -280,6 +290,7 @@ describe('computeWallTrim — T junction', () => {
       end: p(3000, 3000),
       direction: north,
       studWebDepth_mm: WEB_92,
+      studFlangeWidth_mm: 41,
     }
     const trimA = computeWallTrim({
       ownFramingId: 'a',
@@ -301,6 +312,7 @@ describe('computeWallTrim — T junction', () => {
       end: p(1000, 3000),
       direction: north,
       studWebDepth_mm: WEB_92,
+      studFlangeWidth_mm: 41,
     }
     const peerC: JunctionPeer = {
       framingId: 'c',
@@ -309,6 +321,7 @@ describe('computeWallTrim — T junction', () => {
       end: p(2000, -3000),
       direction: { x: 0, z: -1 },
       studWebDepth_mm: WEB_92,
+      studFlangeWidth_mm: 41,
     }
     const trimA = computeWallTrim({
       ownFramingId: 'a',
