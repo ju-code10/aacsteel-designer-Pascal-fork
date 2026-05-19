@@ -88,6 +88,12 @@ export interface EndJunction {
    *  interior across the corner instead of opening along their own walls
    *  past each other. */
   peerBodyDirection?: { x: number; z: number }
+  /** Perpendicular peer wall's stud web depth in mm — used as the lateral
+   *  offset magnitude for THROUGH walls (so the through wall's framing
+   *  shifts toward its perpendicular peer's body by half-web, matching
+   *  what butt walls already do at the same corner). Set for L-butt and
+   *  L-through. */
+  peerWebDepth_mm?: number
 }
 
 export interface InteriorJunction {
@@ -258,9 +264,20 @@ function classifyOneEnd(
             lateralOffsetDirection: peerBodyDirection,
           },
           peerBodyDirection,
+          peerWebDepth_mm: earliest.studWebDepth_mm,
         }
       }
-      return { kind: 'L-through', peerBodyDirection }
+      // L-through: we are the through wall here. We don't carry a `butt`
+      // record (we're not butting), but we still need a lateral offset so
+      // our framing shifts toward the perpendicular peer's body — without
+      // this, the through wall's outer face sticks out half-a-web past
+      // the architectural corner while butt walls at the same corner are
+      // already shifted in.
+      return {
+        kind: 'L-through',
+        peerBodyDirection,
+        peerWebDepth_mm: earliest.studWebDepth_mm,
+      }
     }
     if (parallelPeers.length > 0) {
       return { kind: 'collinear-shared' }
@@ -334,19 +351,29 @@ export function computeWallTrim(args: ClassifyArgs): WallTrim {
     dedupedTPosts.push(t)
   }
 
-  // Aggregate lateral offset from L-butt ends. Each butting end votes a
-  // direction × magnitude in plan; we sum and use the result as-is. For
-  // an exterior rectangular building, both ends agree (the building
-  // interior is the same direction), so the sum doubles the half-web
-  // magnitude — divide by 2 to keep the single-end magnitude. Walls with
-  // only one L-butt end keep the full magnitude.
+  // Aggregate lateral offset from L-butt AND L-through ends. Each L
+  // junction votes a direction × magnitude in plan; we sum and average.
+  //
+  // L-butt: magnitude = lateralOffsetMagnitude_mm (or trim_mm).
+  // L-through: magnitude = peerWebDepth_mm × TRIM_FRACTION_OF_THROUGH_WEB
+  //            (half the perpendicular peer's web depth).
+  //
+  // Both end up at the same number for a uniform rectangle, which keeps
+  // the through and butt walls in alignment at their shared corner.
   const offsetVotes: { x: number; z: number }[] = []
   for (const j of [startJunction, endJunction]) {
-    if (j.kind !== 'L-butt') continue
-    const dir = j.butt?.lateralOffsetDirection
-    const mag = j.butt?.lateralOffsetMagnitude_mm ?? j.butt?.trim_mm
-    if (!dir || mag == null) continue
-    offsetVotes.push({ x: dir.x * mag, z: dir.z * mag })
+    if (j.kind === 'L-butt') {
+      const dir = j.butt?.lateralOffsetDirection
+      const mag = j.butt?.lateralOffsetMagnitude_mm ?? j.butt?.trim_mm
+      if (!dir || mag == null) continue
+      offsetVotes.push({ x: dir.x * mag, z: dir.z * mag })
+    } else if (j.kind === 'L-through') {
+      const dir = j.peerBodyDirection
+      const peerWeb = j.peerWebDepth_mm
+      if (!dir || peerWeb == null) continue
+      const mag = peerWeb * TRIM_FRACTION_OF_THROUGH_WEB
+      offsetVotes.push({ x: dir.x * mag, z: dir.z * mag })
+    }
   }
   let lateralOffsetX_mm = 0
   let lateralOffsetZ_mm = 0
